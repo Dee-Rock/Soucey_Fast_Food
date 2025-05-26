@@ -1,55 +1,22 @@
 "use client"
 
-import React, { useState } from 'react';
+import React from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Minus, Plus, Trash2, ArrowRight } from 'lucide-react';
+import { Minus, Plus, Trash2, ArrowRight, ShoppingBag } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 import { useToast } from '@/components/ui/use-toast';
+import { useCart } from '@/context/cart-context';
 
-// Sample cart items (in a real app, this would come from a state manager like Redux or Context)
-const initialCartItems = [
-  {
-    id: 1,
-    name: 'Jollof Rice with Chicken',
-    price: 35.99,
-    image: '/jollof-rice.jpg',
-    quantity: 2,
-    restaurant: 'Ghana Kitchen',
-  },
-  {
-    id: 5,
-    name: 'Pizza Supreme',
-    price: 55.99,
-    image: '/pizza.jpg',
-    quantity: 1,
-    restaurant: 'Pizza Corner',
-  },
-  {
-    id: 12,
-    name: 'Kelewele',
-    price: 18.99,
-    image: '/kelewele.jpg',
-    quantity: 3,
-    restaurant: 'Accra Delights',
-  },
-];
+// Cart items now come from the cart context
 
 const CartPage = () => {
-  const [cartItems, setCartItems] = useState(initialCartItems);
+  const { cartItems, updateQuantity, removeFromCart, clearCart, subtotal, total, deliveryFee } = useCart();
   const { toast } = useToast();
 
-  const updateQuantity = (id: number, newQuantity: number) => {
-    if (newQuantity < 1) return;
-    
-    setCartItems(cartItems.map(item => 
-      item.id === id ? { ...item, quantity: newQuantity } : item
-    ));
-  };
-
-  const removeItem = (id: number) => {
-    setCartItems(cartItems.filter(item => item.id !== id));
+  const handleRemoveItem = (id: number) => {
+    removeFromCart(id);
     toast({
       title: "Item removed",
       description: "The item has been removed from your cart.",
@@ -57,23 +24,14 @@ const CartPage = () => {
     });
   };
 
-  const clearCart = () => {
-    setCartItems([]);
+  const handleClearCart = () => {
+    clearCart();
     toast({
       title: "Cart cleared",
       description: "All items have been removed from your cart.",
       duration: 3000,
     });
   };
-
-  // Calculate subtotal
-  const subtotal = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
-  
-  // Delivery fee
-  const deliveryFee = 10.00;
-  
-  // Calculate total
-  const total = subtotal + deliveryFee;
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -91,7 +49,7 @@ const CartPage = () => {
                   variant="outline" 
                   size="sm" 
                   className="text-red-500 border-red-500 hover:bg-red-50"
-                  onClick={clearCart}
+                  onClick={handleClearCart}
                 >
                   Clear Cart
                 </Button>
@@ -102,7 +60,7 @@ const CartPage = () => {
                   <div key={item.id} className="py-4 flex flex-col sm:flex-row items-start sm:items-center">
                     <div className="relative h-20 w-20 rounded-md overflow-hidden mr-4 mb-4 sm:mb-0">
                       <Image
-                        src={item.image}
+                        src={item.image || '/placeholder-food.jpg'}
                         alt={item.name}
                         fill
                         className="object-cover"
@@ -118,23 +76,23 @@ const CartPage = () => {
                     <div className="flex items-center">
                       <div className="flex items-center border rounded-md mr-4">
                         <button 
-                          className="px-3 py-1 text-gray-600 hover:bg-gray-100"
                           onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          className="p-1 rounded-md hover:bg-gray-100"
                         >
-                          <Minus className="w-4 h-4" />
+                          <Minus className="w-4 h-4 text-gray-500" />
                         </button>
-                        <span className="px-3 py-1">{item.quantity}</span>
+                        <span className="mx-2 font-medium">{item.quantity}</span>
                         <button 
-                          className="px-3 py-1 text-gray-600 hover:bg-gray-100"
                           onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          className="p-1 rounded-md hover:bg-gray-100"
                         >
-                          <Plus className="w-4 h-4" />
+                          <Plus className="w-4 h-4 text-gray-500" />
                         </button>
                       </div>
                       
                       <button 
-                        className="text-red-500 hover:text-red-700"
-                        onClick={() => removeItem(item.id)}
+                        onClick={() => handleRemoveItem(item.id)}
+                        className="p-1 rounded-md hover:bg-gray-100 text-red-500"
                       >
                         <Trash2 className="w-5 h-5" />
                       </button>

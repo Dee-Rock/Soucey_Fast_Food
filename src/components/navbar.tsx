@@ -6,9 +6,11 @@ import Image from 'next/image';
 import { UserButton, useUser } from '@clerk/nextjs';
 import { ShoppingCart, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useCart } from '@/context/cart-context';
 
 const Navbar = () => {
   const { isSignedIn } = useUser();
+  const { itemCount } = useCart();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const toggleMenu = () => {
@@ -55,9 +57,11 @@ const Navbar = () => {
           <div className="hidden md:flex items-center space-x-4">
             <Link href="/cart" className="relative">
               <ShoppingCart className="w-6 h-6 text-gray-700 hover:text-pink-600 transition-colors" />
-              <span className="absolute -top-2 -right-2 bg-pink-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                0
-              </span>
+              {itemCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-pink-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                  {itemCount}
+                </span>
+              )}
             </Link>
             
             {isSignedIn ? (
@@ -82,9 +86,11 @@ const Navbar = () => {
           <div className="md:hidden flex items-center space-x-4">
             <Link href="/cart" className="relative">
               <ShoppingCart className="w-6 h-6 text-gray-700" />
-              <span className="absolute -top-2 -right-2 bg-pink-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                0
-              </span>
+              {itemCount > 0 && (
+                <span className="absolute -top-2 -right-2 bg-pink-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                  {itemCount}
+                </span>
+              )}
             </Link>
             <button onClick={toggleMenu} className="text-gray-700">
               {isMenuOpen ? (
