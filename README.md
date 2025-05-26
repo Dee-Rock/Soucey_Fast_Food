@@ -1,3 +1,4 @@
+
 # Soucey - Food Ordering & Delivery Website
 
 A modern food ordering and delivery platform built for campus life in Ghana, featuring a beautiful pink-themed UI.
@@ -83,3 +84,5 @@ This project is licensed under the MIT License.
 - [Tailwind CSS](https://tailwindcss.com/)
 - [Supabase](https://supabase.io/)
 - [Clerk](https://clerk.dev/)
+=======
+>>>>>>> 2d6437d (add)
