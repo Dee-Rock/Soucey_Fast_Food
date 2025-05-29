@@ -7,38 +7,33 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, Filter, Loader } from 'lucide-react';
 import FoodCard from '@/components/food-card';
 import { formatPrice } from '@/lib/utils';
-import { MenuItem } from '@/lib/firestore';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { IMenuItem } from '@/models/MenuItem';
 
 const MenuPage = () => {
-  const [foodItems, setFoodItems] = useState<MenuItem[]>([]);
-  const [filteredItems, setFilteredItems] = useState<MenuItem[]>([]);
+  const [foodItems, setFoodItems] = useState<IMenuItem[]>([]);
+  const [filteredItems, setFilteredItems] = useState<IMenuItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch food items from Firestore
+  // Fetch food items from MongoDB API
   useEffect(() => {
     const fetchFoodItems = async () => {
       try {
         setIsLoading(true);
-        const menuItemsCollection = collection(db, 'menuItems');
-        const menuItemsQuery = query(
-          menuItemsCollection,
-          where('available', '==', true),
-          orderBy('popular', 'desc')
-        );
+        const response = await fetch('/api/menu-items');
         
-        const querySnapshot = await getDocs(menuItemsQuery);
-        const items: MenuItem[] = [];
+        if (!response.ok) {
+          throw new Error('Failed to fetch menu items');
+        }
+        
+        const data = await response.json();
+        const items: IMenuItem[] = data;
         const categorySet = new Set<string>();
         
-        querySnapshot.forEach((doc) => {
-          const item = { id: doc.id, ...doc.data() } as MenuItem;
-          items.push(item);
+        items.forEach((item) => {
           if (item.category) {
             categorySet.add(item.category);
           }
@@ -58,27 +53,26 @@ const MenuPage = () => {
     fetchFoodItems();
   }, []);
   
-  // Filter items based on search query and category
+  // Filter items based on category and search query
   useEffect(() => {
-    let result = [...foodItems];
+    let filtered = [...foodItems];
+    
+    // Filter by category
+    if (selectedCategory !== 'all') {
+      filtered = filtered.filter(item => item.category === selectedCategory);
+    }
     
     // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      result = result.filter(
+      filtered = filtered.filter(
         item => 
           item.name.toLowerCase().includes(query) ||
-          item.description.toLowerCase().includes(query) ||
-          item.restaurant.toLowerCase().includes(query)
+          (item.description && item.description.toLowerCase().includes(query))
       );
     }
     
-    // Filter by category
-    if (selectedCategory !== 'all') {
-      result = result.filter(item => item.category === selectedCategory);
-    }
-    
-    setFilteredItems(result);
+    setFilteredItems(filtered);
   }, [searchQuery, selectedCategory, foodItems]);
 
   return (
@@ -134,7 +128,17 @@ const MenuPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredItems.length > 0 ? (
               filteredItems.map((food) => (
-                <FoodCard key={food.id} food={food} />
+                <FoodCard
+                  key={food._id?.toString() || food.id}
+                  id={food._id?.toString() || food.id}
+                  name={food.name}
+                  description={food.description || ''}
+                  price={food.price}
+                  image={food.imageUrl}
+                  restaurant={food.restaurantId ? `From ${food.restaurantId}` : ''}
+                  category={food.category}
+                  popular={food.isFeatured || false}
+                />
               ))
             ) : (
               <div className="col-span-full text-center py-12">

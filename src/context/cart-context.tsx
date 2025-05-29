@@ -10,6 +10,7 @@ export interface CartItem {
   quantity: number;
   restaurant: string;
   image?: string;
+  notes?: string;
 }
 
 interface CartContextType {

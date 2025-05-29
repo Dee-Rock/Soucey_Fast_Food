@@ -1,10 +1,15 @@
 "use client"
 
 import { useState } from 'react'
-import { ArrowLeft, Upload, Save } from 'lucide-react'
+import { ArrowLeft, Upload, Save, Loader } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useToast } from '@/components/ui/use-toast'
 
 export default function NewRestaurantPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -22,6 +27,8 @@ export default function NewRestaurantPage() {
 
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [coverPreview, setCoverPreview] = useState<string | null>(null)
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [coverFile, setCoverFile] = useState<File | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target
@@ -36,6 +43,7 @@ export default function NewRestaurantPage() {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      setLogoFile(file)
       const reader = new FileReader()
       reader.onloadend = () => {
         setLogoPreview(reader.result as string)
@@ -47,6 +55,7 @@ export default function NewRestaurantPage() {
   const handleCoverUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      setCoverFile(file)
       const reader = new FileReader()
       reader.onloadend = () => {
         setCoverPreview(reader.result as string)
@@ -55,12 +64,89 @@ export default function NewRestaurantPage() {
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Here you would typically send the data to your API
-    console.log('Form submitted:', formData)
-    // Redirect to restaurants list after successful submission
-    // router.push('/admin/restaurants')
+    
+    // Validate required fields
+    if (!formData.name || !formData.address || !formData.phone) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
+    
+    setIsSubmitting(true);
+
+    try {
+      // Handle logo file upload
+      let logoUrl = "";
+      if (logoFile) {
+        // Create a FormData object to upload the file
+        const formData = new FormData();
+        formData.append('file', logoFile);
+        
+        // In a production app, you would upload this to your server or a service like Cloudinary
+        // For now, we'll create a placeholder URL
+        logoUrl = URL.createObjectURL(logoFile);
+        
+        // Note: In production, replace this with actual file upload logic
+        // const uploadResponse = await fetch('/api/upload', {
+        //   method: 'POST',
+        //   body: formData
+        // });
+        // const { url } = await uploadResponse.json();
+        // logoUrl = url;
+      }
+
+      // Create restaurant document via API
+      const restaurantData = {
+        ...formData,
+        logo: logoUrl,
+        logoUrl: logoUrl, // MongoDB model expects logoUrl
+        rating: 0,
+        totalOrders: 0,
+        isActive: true,
+        featuredRestaurant: false,
+      };
+
+      const response = await fetch('/api/restaurants', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(restaurantData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create restaurant');
+      }
+
+      const newRestaurant = await response.json();
+
+      toast({
+        title: "Success",
+        description: `Restaurant ${formData.name} has been created successfully.`,
+        duration: 3000,
+      });
+
+      // Redirect to restaurants list
+      router.push('/admin/restaurants');
+    } catch (error) {
+      console.error('Error creating restaurant:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast({
+        title: "Error",
+        description: `Failed to create restaurant: ${errorMessage}`,
+        variant: "destructive",
+        duration: 5000,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -379,10 +465,20 @@ export default function NewRestaurantPage() {
             </Link>
             <button
               type="submit"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
+              disabled={isSubmitting}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 disabled:bg-pink-400 disabled:cursor-not-allowed"
             >
-              <Save className="h-4 w-4 mr-2" />
-              Save Restaurant
+              {isSubmitting ? (
+                <>
+                  <Loader className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Restaurant
+                </>
+              )}
             </button>
           </div>
         </form>

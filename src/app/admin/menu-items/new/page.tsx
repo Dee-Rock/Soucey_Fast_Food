@@ -1,19 +1,30 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import { ArrowLeft, Upload, Save } from 'lucide-react'
+import { ArrowLeft, Upload, Save, Loader } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useToast } from '@/components/ui/use-toast'
 
-// Mock data for restaurants
-const restaurants = [
-  { id: '1', name: 'Ghana Kitchen' },
-  { id: '2', name: 'Pizza Corner' },
-  { id: '3', name: 'Accra Delights' },
-  { id: '4', name: 'Spice Route' },
-  { id: '5', name: 'Taste of China' }
+// Categories for menu items
+const categories = [
+  'Main Dishes',
+  'Sides',
+  'Appetizers',
+  'Desserts',
+  'Beverages',
+  'Breakfast',
+  'Lunch',
+  'Dinner',
+  'Specials'
 ]
 
 export default function NewMenuItemPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [restaurants, setRestaurants] = useState<{id: string, name: string}[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -31,6 +42,7 @@ export default function NewMenuItemPage() {
   })
 
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target
@@ -45,6 +57,7 @@ export default function NewMenuItemPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      setImageFile(file)
       const reader = new FileReader()
       reader.onloadend = () => {
         setImagePreview(reader.result as string)
@@ -53,12 +66,123 @@ export default function NewMenuItemPage() {
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Here you would typically send the data to your API
-    console.log('Form submitted:', formData)
-    // Redirect to menu items list after successful submission
-    // router.push('/admin/menu-items')
+  useEffect(() => {
+    const fetchRestaurants = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch('/api/restaurants');
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch restaurants');
+        }
+        
+        const data = await response.json();
+        const restaurantList = data.map((restaurant: any) => ({
+          id: restaurant._id,
+          name: restaurant.name
+        }));
+        
+        setRestaurants(restaurantList);
+      } catch (error) {
+        console.error("Error fetching restaurants:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load restaurants. Please refresh the page.",
+          variant: "destructive",
+          duration: 5000,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRestaurants();
+  }, [toast]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // Validate required fields
+    if (!formData.name || !formData.price || !formData.restaurantId || !formData.category) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+        duration: 3000,
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Handle image file upload
+      let imageUrl = "";
+      if (imageFile) {
+        // Create a FormData object to upload the file
+        const formData = new FormData();
+        formData.append('file', imageFile);
+        
+        // In a production app, you would upload this to your server or a service like Cloudinary
+        // For now, we'll create a placeholder URL
+        imageUrl = URL.createObjectURL(imageFile);
+        
+        // Note: In production, replace this with actual file upload logic
+        // const uploadResponse = await fetch('/api/upload', {
+        //   method: 'POST',
+        //   body: formData
+        // });
+        // const { url } = await uploadResponse.json();
+        // imageUrl = url;
+      }
+
+      // Create menu item document via API
+      const menuItemData = {
+        ...formData,
+        imageUrl: imageUrl,
+        price: parseFloat(formData.price),
+        isAvailable: true,
+        isFeatured: false,
+      };
+
+      const response = await fetch('/api/menu-items', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(menuItemData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create menu item');
+      }
+
+      const newMenuItem = await response.json();
+
+      toast({
+        title: "Success",
+        description: `Menu item ${formData.name} has been created successfully.`,
+        duration: 3000,
+      });
+
+      // Redirect to menu items list
+      router.push('/admin/menu-items');
+    } catch (error) {
+      console.error('Error creating menu item:', error);
+      // Show more detailed error information
+      const errorMessage = error instanceof Error 
+        ? `${error.name}: ${error.message}` 
+        : 'Unknown error occurred';
+      
+      toast({
+        title: "Error",
+        description: `Failed to create menu item: ${errorMessage}`,
+        variant: "destructive",
+        duration: 10000,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -108,15 +232,10 @@ export default function NewMenuItemPage() {
                     onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   >
-                    <option value="">Select Category</option>
-                    <option value="Main Dishes">Main Dishes</option>
-                    <option value="Appetizers">Appetizers</option>
-                    <option value="Soups">Soups</option>
-                    <option value="Salads">Salads</option>
-                    <option value="Desserts">Desserts</option>
-                    <option value="Beverages">Beverages</option>
-                    <option value="Sides">Sides</option>
-                    <option value="Specials">Specials</option>
+                    <option value="">Select a category</option>
+                    {categories.map((category) => (
+                      <option key={category} value={category}>{category}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -155,12 +274,14 @@ export default function NewMenuItemPage() {
                     onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
                   >
-                    <option value="">Select Restaurant</option>
-                    {restaurants.map(restaurant => (
-                      <option key={restaurant.id} value={restaurant.id}>
-                        {restaurant.name}
-                      </option>
-                    ))}
+                    <option value="">Select a restaurant</option>
+                    {restaurants.length > 0 ? (
+                      restaurants.map((restaurant) => (
+                        <option key={restaurant.id} value={restaurant.id}>{restaurant.name}</option>
+                      ))
+                    ) : (
+                      <option disabled>Loading restaurants...</option>
+                    )}
                   </select>
                 </div>
                 
@@ -365,10 +486,20 @@ export default function NewMenuItemPage() {
             </Link>
             <button
               type="submit"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
+              disabled={isSubmitting}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 disabled:bg-pink-400 disabled:cursor-not-allowed"
             >
-              <Save className="h-4 w-4 mr-2" />
-              Save Menu Item
+              {isSubmitting ? (
+                <>
+                  <Loader className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Menu Item
+                </>
+              )}
             </button>
           </div>
         </form>

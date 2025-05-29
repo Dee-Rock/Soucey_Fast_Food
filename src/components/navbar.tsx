@@ -22,16 +22,23 @@ const Navbar = () => {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center">
-            <div className="relative w-10 h-10 mr-2">
-              <Image 
-                src="/logo.png" 
-                alt="Soucey Logo" 
-                fill
-                className="object-contain"
-              />
+          <Link href="/" className="flex items-center group">
+            <div className="relative w-36 h-10">
+              <div className="absolute -inset-1 bg-gradient-to-r from-pink-500 to-pink-600 rounded blur opacity-0 group-hover:opacity-70 transition-opacity duration-300"></div>
+              <div className="relative w-full h-full flex items-center">
+                <div className="relative w-full h-full rounded-lg overflow-hidden">
+                  <Image 
+                    src="/Soucey.jpeg" 
+                    alt="Soucey Logo" 
+                    width={140}
+                    height={40}
+                    className="object-contain h-full w-full"
+                    priority
+                    sizes="(max-width: 768px) 144px, 180px"
+                  />
+                </div>
+              </div>
             </div>
-            <span className="font-bold text-xl text-pink-600">Soucey</span>
           </Link>
 
           {/* Desktop Navigation */}

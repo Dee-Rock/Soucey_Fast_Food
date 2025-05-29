@@ -1,4 +1,3 @@
-
 # Soucey - Food Ordering & Delivery Website
 
 A modern food ordering and delivery platform built for campus life in Ghana, featuring a beautiful pink-themed UI.
@@ -11,13 +10,14 @@ A modern food ordering and delivery platform built for campus life in Ghana, fea
 - **Cart Management**: Add items to cart, modify quantities, and checkout
 - **Payment Options**: Multiple payment methods including card, mobile money, and cash on delivery
 - **Responsive Design**: Beautiful UI that works on all devices
+- **Admin Dashboard**: Comprehensive admin interface for managing restaurants, menu items, orders, and users
 
 ## Tech Stack
 
 - **Frontend**: Next.js 14 with App Router
 - **UI Components**: Shadcn UI
 - **Styling**: Tailwind CSS
-- **Database**: Supabase
+- **Database**: MongoDB
 - **Authentication**: Clerk
 - **State Management**: React Context API
 - **Form Handling**: React Hook Form with Zod validation
@@ -32,7 +32,7 @@ A modern food ordering and delivery platform built for campus life in Ghana, fea
 
 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/soucey.git
+git clone https://github.com/RockZ37/Soucey_Fast_Food.git
 cd soucey
 ```
 
@@ -41,15 +41,16 @@ cd soucey
 npm install
 # or
 yarn install
+#or
+pnpm install
 ```
 
 3. Set up environment variables
 Create a `.env.local` file in the root directory with the following variables:
 ```
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+MONGODB_URI=your_mongodb_connection_string
 CLERK_SECRET_KEY=your_clerk_secret_key
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
 4. Run the development server
@@ -57,6 +58,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 npm run dev
 # or
 yarn dev
+#or
+pnpm dev
 ```
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser to see the application
@@ -82,7 +85,5 @@ This project is licensed under the MIT License.
 - [Next.js](https://nextjs.org/)
 - [Shadcn UI](https://ui.shadcn.com/)
 - [Tailwind CSS](https://tailwindcss.com/)
-- [Supabase](https://supabase.io/)
 - [Clerk](https://clerk.dev/)
-=======
->>>>>>> 2d6437d (add)
+

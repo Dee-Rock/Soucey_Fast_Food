@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { 
   Search, 
   Filter, 
@@ -17,9 +18,9 @@ import {
   Loader2
 } from 'lucide-react'
 import { exportToCSV, exportToJSON, getFormattedDate } from '@/utils/export-data'
-import { getCollection, deleteDocument, updateDocument, Restaurant } from '@/lib/firestore'
+import { IRestaurant } from '@/models/Restaurant'
 export default function RestaurantsPage() {
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([])
+  const [restaurants, setRestaurants] = useState<IRestaurant[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -28,12 +29,18 @@ export default function RestaurantsPage() {
   const [sortField, setSortField] = useState('name')
   const [sortDirection, setSortDirection] = useState('asc')
   
-  // Load restaurants from Firestore
+  // Load restaurants from MongoDB API
   useEffect(() => {
     const fetchRestaurants = async () => {
       try {
         setIsLoading(true)
-        const data = await getCollection<Restaurant>('restaurants')
+        const response = await fetch('/api/restaurants')
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch restaurants')
+        }
+        
+        const data = await response.json()
         setRestaurants(data)
         setError(null)
       } catch (err) {
@@ -51,43 +58,84 @@ export default function RestaurantsPage() {
   const uniqueCuisines = new Set(restaurants.map(r => r.cuisineType || ''))
   const cuisineTypes = ['all', ...Array.from(uniqueCuisines)]
 
-  // Handle restaurant deletion
-  const handleDelete = async (id: string | undefined) => {
-    if (!id) return
+  // Delete restaurant
+  const handleDeleteRestaurant = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this restaurant?')) return;
     
-    if (confirm('Are you sure you want to delete this restaurant?')) {
-      try {
-        const success = await deleteDocument('restaurants', id)
-        if (success) {
-          setRestaurants(restaurants.filter(restaurant => restaurant.id !== id))
-        } else {
-          alert('Failed to delete restaurant. Please try again.')
-        }
-      } catch (err) {
-        console.error('Error deleting restaurant:', err)
-        alert('An error occurred while deleting the restaurant.')
+    try {
+      const response = await fetch(`/api/restaurants/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete restaurant');
       }
+      
+      setRestaurants(restaurants.filter(r => {
+        const restaurantId = r._id?.toString() || r.id?.toString() || '';
+        return restaurantId !== id;
+      }) as IRestaurant[]);
+    } catch (error) {
+      console.error('Error deleting restaurant:', error);
+      alert('Failed to delete restaurant. Please try again.');
     }
   }
 
-  // Handle restaurant status toggle
-  const handleStatusToggle = async (restaurant: Restaurant) => {
-    if (!restaurant.id) return
-    
+  // Toggle restaurant active status
+  const toggleRestaurantStatus = async (id: string, isActive: boolean) => {
     try {
-      const newStatus = restaurant.status === 'active' ? 'inactive' : 'active'
-      const success = await updateDocument('restaurants', restaurant.id, { status: newStatus })
+      const response = await fetch(`/api/restaurants/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ isActive: !isActive }),
+      });
       
-      if (success) {
-        setRestaurants(restaurants.map(r => 
-          r.id === restaurant.id ? {...r, status: newStatus} : r
-        ))
-      } else {
-        alert('Failed to update restaurant status. Please try again.')
+      if (!response.ok) {
+        throw new Error('Failed to update restaurant status');
       }
-    } catch (err) {
-      console.error('Error updating restaurant status:', err)
-      alert('An error occurred while updating the restaurant status.')
+      
+      setRestaurants(restaurants.map(r => {
+        const restaurantId = r._id?.toString() || r.id?.toString() || '';
+        if (restaurantId === id) {
+          return { ...r, isActive: !isActive } as IRestaurant;
+        }
+        return r;
+      }));
+    } catch (error) {
+      console.error('Error updating restaurant status:', error);
+      alert('Failed to update restaurant status. Please try again.');
+    }
+  }
+
+  // Toggle restaurant featured status
+  const toggleFeatured = async (id: string, featured: boolean) => {
+    try {
+      const response = await fetch(`/api/restaurants/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ featuredRestaurant: !featured }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update restaurant');
+      }
+      
+      setRestaurants(
+        restaurants.map(r => {
+          const restaurantId = r._id?.toString() || r.id?.toString() || '';
+          if (restaurantId === id) {
+            return { ...r, featuredRestaurant: !featured } as IRestaurant;
+          }
+          return r;
+        })
+      );
+    } catch (error) {
+      console.error('Error updating restaurant:', error);
+      alert('Failed to update restaurant. Please try again.');
     }
   }
 
@@ -98,7 +146,7 @@ export default function RestaurantsPage() {
       restaurant.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
       restaurant.cuisineType.toLowerCase().includes(searchTerm.toLowerCase())
     
-    const matchesStatus = statusFilter === 'all' || restaurant.status === statusFilter
+    const matchesStatus = statusFilter === 'all' || restaurant.isActive === (statusFilter === 'active')
     const matchesCuisine = cuisineFilter === 'all' || restaurant.cuisineType === cuisineFilter
     
     return matchesSearch && matchesStatus && matchesCuisine
@@ -179,7 +227,7 @@ export default function RestaurantsPage() {
             <div>
               <p className="text-sm font-medium text-gray-500">Active Restaurants</p>
               <p className="text-2xl font-semibold mt-1">
-                {restaurants.filter(r => r.status === 'active').length}
+                {restaurants.filter(r => r.isActive).length}
               </p>
             </div>
             <div className="bg-green-50 p-3 rounded-full">
@@ -193,7 +241,7 @@ export default function RestaurantsPage() {
             <div>
               <p className="text-sm font-medium text-gray-500">Featured Restaurants</p>
               <p className="text-2xl font-semibold mt-1">
-                {restaurants.filter(r => r.featured).length}
+                {restaurants.filter(r => r.featuredRestaurant).length}
               </p>
             </div>
             <div className="bg-yellow-50 p-3 rounded-full">
@@ -350,7 +398,7 @@ export default function RestaurantsPage() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {sortedRestaurants.map((restaurant) => (
-                <tr key={restaurant.id} className="hover:bg-gray-50">
+                <tr key={restaurant._id?.toString() || restaurant.id?.toString() || ''} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10 bg-gray-200 rounded-full overflow-hidden">
@@ -362,7 +410,7 @@ export default function RestaurantsPage() {
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900 flex items-center">
                           {restaurant.name}
-                          {restaurant.featured && (
+                          {restaurant.featuredRestaurant && (
                             <Star className="h-4 w-4 text-yellow-500 ml-1" />
                           )}
                         </div>
@@ -388,20 +436,33 @@ export default function RestaurantsPage() {
                     {restaurant.totalOrders}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                      ${restaurant.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                      {restaurant.status}
+                    <span className={`px-2 py-1 rounded text-xs ${restaurant.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {restaurant.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                     <Link 
-                      href={`/admin/restaurants/${restaurant.id}/edit`}
-                      className="text-blue-600 hover:text-blue-900 mr-3"
+                      href={`/admin/restaurants/edit/${restaurant._id?.toString() || restaurant.id?.toString() || ''}`} 
+                      className="inline-flex items-center text-gray-500 hover:text-blue-600" 
+                      title="Edit Restaurant"
                     >
                       <Edit className="h-4 w-4" />
                     </Link>
-                    <button 
-                      onClick={() => handleDelete(restaurant.id)}
+                    <button
+                      onClick={() => {
+                        const id = restaurant._id?.toString() || restaurant.id?.toString() || '';
+                        toggleRestaurantStatus(id, restaurant.isActive);
+                      }}
+                      className="text-gray-500 hover:text-blue-600"
+                      title={`Mark as ${restaurant.isActive ? 'Inactive' : 'Active'}`}
+                    >
+                      <Star className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        const id = restaurant._id?.toString() || restaurant.id?.toString() || '';
+                        handleDeleteRestaurant(id);
+                      }}
                       className="text-red-600 hover:text-red-900"
                     >
                       <Trash className="h-4 w-4" />

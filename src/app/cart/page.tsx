@@ -15,7 +15,7 @@ const CartPage = () => {
   const { cartItems, updateQuantity, removeFromCart, clearCart, subtotal, total, deliveryFee } = useCart();
   const { toast } = useToast();
 
-  const handleRemoveItem = (id: number) => {
+  const handleRemoveItem = (id: string | number) => {
     removeFromCart(id);
     toast({
       title: "Item removed",

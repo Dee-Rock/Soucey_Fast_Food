@@ -85,17 +85,21 @@ const initializeStore = () => {
   
   // Import mock data from admin pages
   import('@/data/mock-data').then((mockData) => {
-    // Set each collection
-    setCollection('orders', mockData.orders);
-    setCollection('payments', mockData.payments);
-    setCollection('restaurants', mockData.restaurants);
-    setCollection('menuItems', mockData.menuItems);
-    setCollection('users', mockData.users);
-    
-    // Mark as initialized
-    localStorage.setItem('soucey_store_initialized', 'true');
+    try {
+      // Set each collection with proper typing
+      if (mockData.orders) setCollection<Order>('orders', mockData.orders);
+      if (mockData.payments) setCollection<Payment>('payments', mockData.payments);
+      if (mockData.restaurants) setCollection<Restaurant>('restaurants', mockData.restaurants);
+      if (mockData.menuItems) setCollection<MenuItem>('menuItems', mockData.menuItems);
+      if (mockData.users) setCollection<User>('users', mockData.users);
+      
+      // Mark as initialized
+      localStorage.setItem('soucey_store_initialized', 'true');
+    } catch (error) {
+      console.error('Error initializing store:', error);
+    }
   }).catch(error => {
-    console.error('Failed to initialize store:', error);
+    console.error('Failed to load mock data:', error);
   });
 };
 

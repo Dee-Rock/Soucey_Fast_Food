@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   Search, 
   Filter, 
@@ -17,397 +18,644 @@ import {
   FileText,
   Loader2,
   ShoppingBag
-} from 'lucide-react'
-import { exportToCSV, exportToJSON, getFormattedDate } from '@/utils/export-data'
-import { getCollection, deleteDocument, updateDocument, Order } from '@/lib/firestore'
+} from 'lucide-react';
+import { exportToCSV, exportToJSON, getFormattedDate } from '@/utils/export-data';
+import { getCollection } from '@/lib/mongodb';
+import { IOrder as DbIOrder } from '@/models/Order';
+import { ObjectId, WithId, Document } from 'mongodb';
+
+// Interface for customer information
+interface ICustomer {
+  _id?: string | ObjectId;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  [key: string]: any; // Allow for additional properties
+}
+
+type OrderStatus = 'pending' | 'processing' | 'delivered' | 'cancelled';
+type PaymentStatus = 'pending' | 'paid' | 'refunded';
+type PaymentMethod = 'mobile_money' | 'card' | 'cash' | 'unknown';
+
+// Interface for order items with proper types
+interface IOrderItem {
+  _id?: string | ObjectId;
+  name: string;
+  quantity: number;
+  price: number | string;
+  total?: number;
+  notes?: string;
+  [key: string]: any; // Allow for additional properties
+}
+
+// Type for database order (matches MongoDB document)
+interface DbOrderDocument extends Document {
+  _id: ObjectId;
+  orderNumber?: string;
+  customer: any;
+  items?: Array<{
+    _id?: any;
+    name?: string;
+    quantity?: number | string;
+    price?: number | string;
+    total?: number;
+    [key: string]: any;
+  }>;
+  status?: string;
+  paymentStatus?: string;
+  paymentMethod?: string;
+  amount?: number | string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  notes?: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  [key: string]: any; // Allow for additional properties
+}
+
+// Main order interface for the application
+interface IOrder {
+  _id: string;
+  orderNumber: string;
+  customer: string | ICustomer;
+  items: IOrderItem[];
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  paymentMethod: PaymentMethod;
+  total: number;
+  email: string;
+  phone: string;
+  address: string;
+  notes: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export default function OrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [selectedOrder, setSelectedOrder] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [paymentFilter, setPaymentFilter] = useState('all')
-  const [sortField, setSortField] = useState('date')
-  const [sortDirection, setSortDirection] = useState('desc')
+  const [orders, setOrders] = useState<IOrder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [paymentFilter, setPaymentFilter] = useState<string>('all');
+  const [sortField, setSortField] = useState('createdAt');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const router = useRouter();
   
-  // Load orders from Firestore
+  // Fetch orders from database
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        setIsLoading(true)
-        const data = await getCollection<Order>('orders')
-        setOrders(data)
-        setError(null)
+        setIsLoading(true);
+        const ordersCollection = await getCollection<DbOrderDocument>('orders');
+        const sortOption: Record<string, 1 | -1> = { [sortField]: sortDirection === 'asc' ? 1 : -1 };
+        const ordersData = await ordersCollection
+          .find({})
+          .sort(sortOption)
+          .toArray();
+        
+        // Convert MongoDB documents to IOrder format
+        const formattedOrders = ordersData.map((orderDoc: WithId<DbOrderDocument>) => {
+          // Safely cast the document to a more specific type
+          const order = orderDoc as unknown as {
+            _id: ObjectId;
+            orderNumber?: string;
+            customer: any;
+            items?: Array<{
+              _id?: any;
+              name?: string;
+              quantity?: number | string;
+              price?: number | string;
+              total?: number;
+            }>;
+            status?: string;
+            paymentStatus?: string;
+            paymentMethod?: string;
+            amount?: number | string;
+            email?: string;
+            phone?: string;
+            address?: string;
+            notes?: string;
+            createdAt?: Date | string;
+            updatedAt?: Date | string;
+          };
+          
+          // Ensure we have a proper customer object
+          let customer: string | ICustomer;
+          if (order.customer && typeof order.customer === 'object') {
+            const cust = order.customer as Record<string, unknown>;
+            customer = {
+              name: (cust.name as string) || 'Unknown Customer',
+              email: (cust.email as string) || '',
+              phone: (cust.phone as string) || '',
+              address: (cust.address as string) || ''
+            };
+          } else {
+            customer = String(order.customer || 'Unknown Customer');
+          }
+          
+          // Map items safely
+          const items: IOrderItem[] = [];
+          if (Array.isArray(order.items)) {
+            order.items.forEach(item => {
+              items.push({
+                _id: (item._id?.toString()) || new ObjectId().toString(),
+                name: item.name || 'Unknown Item',
+                quantity: Number(item.quantity) || 1,
+                price: Number(item.price) || 0,
+                total: (Number(item.quantity) || 1) * (Number(item.price) || 0)
+              });
+            });
+          }
+          
+          // Safely parse dates
+          const createdAt = order.createdAt 
+            ? (typeof order.createdAt === 'string' ? new Date(order.createdAt) : order.createdAt)
+            : new Date();
+            
+          const updatedAt = order.updatedAt 
+            ? (typeof order.updatedAt === 'string' ? new Date(order.updatedAt) : order.updatedAt)
+            : new Date();
+          
+          // Create the order object with proper typing
+          const orderData: IOrder = {
+            _id: order._id.toString(),
+            orderNumber: order.orderNumber || `ORD-${order._id.toString().slice(-6).toUpperCase()}`,
+            customer,
+            items,
+            status: (order.status as OrderStatus) || 'pending',
+            paymentStatus: (order.paymentStatus as PaymentStatus) || 'pending',
+            paymentMethod: (order.paymentMethod as PaymentMethod) || 'unknown',
+            total: typeof order.amount === 'string' ? parseFloat(order.amount) : Number(order.amount) || 0,
+            email: order.email?.toString() || '',
+            phone: order.phone?.toString() || '',
+            address: order.address?.toString() || '',
+            notes: order.notes?.toString() || '',
+            createdAt,
+            updatedAt
+          };
+          
+          return orderData;
+        });
+        
+        setOrders(formattedOrders);
+        setError(null);
       } catch (err) {
-        console.error('Error fetching orders:', err)
-        setError('Failed to load orders. Please try again.')
-      } finally {
-        setIsLoading(false)
-      }
-    }
-    
-    fetchOrders()
-  }, [])
-
-  // Handle order deletion
-  const handleDeleteOrder = async (id: string | undefined) => {
-    if (!id) return
-    
-    if (confirm('Are you sure you want to delete this order?')) {
-      try {
-        const success = await deleteDocument('orders', id)
-        if (success) {
-          setOrders(orders.filter(order => order.id !== id))
-        } else {
-          alert('Failed to delete order. Please try again.')
+        console.error('Error fetching orders:', err);
+        setError('Failed to load orders. Please try again later.');
+        
+        // Fallback to mock data in development
+        if (process.env.NODE_ENV === 'development') {
+          try {
+            const { orders: mockOrders } = await import('@/data/mock-data');
+            // Ensure mock data matches IOrder interface
+            const typedMockOrders = (mockOrders as any[]).map(order => ({
+              ...order,
+              _id: order._id || new ObjectId().toString(),
+              orderNumber: order.orderNumber || `MOCK-${Math.random().toString(36).substr(2, 8).toUpperCase()}`,
+              customer: order.customer || 'Mock Customer',
+              items: order.items?.map((item: any) => ({
+                _id: item._id || new ObjectId().toString(),
+                name: item.name || 'Mock Item',
+                quantity: item.quantity || 1,
+                price: item.price || 0,
+                total: (item.quantity || 1) * (item.price || 0)
+              })) || [],
+              status: (order.status as OrderStatus) || 'pending',
+              paymentStatus: (order.paymentStatus as PaymentStatus) || 'pending',
+              paymentMethod: (order.paymentMethod as PaymentMethod) || 'unknown',
+              total: order.total || 0,
+              email: order.email || '',
+              phone: order.phone || '',
+              address: order.address || '',
+              createdAt: order.createdAt ? new Date(order.createdAt) : new Date(),
+              updatedAt: order.updatedAt ? new Date(order.updatedAt) : new Date()
+            }));
+            
+            setOrders(typedMockOrders as IOrder[]);
+            setError(null);
+          } catch (mockErr) {
+            console.error('Error loading mock data:', mockErr);
+          }
         }
-      } catch (err) {
-        console.error('Error deleting order:', err)
-        alert('An error occurred while deleting the order.')
+      } finally {
+        setIsLoading(false);
       }
-    }
-  }
+    };
 
-  // Handle order status update
-  const handleStatusUpdate = async (id: string | undefined, newStatus: 'pending' | 'processing' | 'delivered' | 'cancelled') => {
-    if (!id) return
-    
-    try {
-      const success = await updateDocument('orders', id, { status: newStatus })
-      
-      if (success) {
-        setOrders(orders.map(order => 
-          order.id === id ? {...order, status: newStatus} : order
-        ))
-      } else {
-        alert('Failed to update order status. Please try again.')
-      }
-    } catch (err) {
-      console.error('Error updating order status:', err)
-      alert('An error occurred while updating the order status.')
-    }
-  }
+    fetchOrders();
+  }, [sortField, sortDirection]);
 
   // Filter orders based on search term and filters
-  const filteredOrders = orders.filter((order: Order) => {
-    const matchesSearch = 
-      (order.id?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.phone.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter
-    const matchesPayment = paymentFilter === 'all' || order.paymentStatus === paymentFilter
-    
-    return matchesSearch && matchesStatus && matchesPayment
-  })
-
-  // Sort orders
-  const sortedOrders = [...filteredOrders].sort((a: Order, b: Order) => {
-    if (sortField === 'date') {
-      return sortDirection === 'asc' 
-        ? new Date(a.date).getTime() - new Date(b.date).getTime()
-        : new Date(b.date).getTime() - new Date(a.date).getTime()
-    } else if (sortField === 'amount') {
-      const aAmount = parseFloat(a.amount.replace(/[^0-9.]/g, ''))
-      const bAmount = parseFloat(b.amount.replace(/[^0-9.]/g, ''))
-      return sortDirection === 'asc' ? aAmount - bAmount : bAmount - aAmount
-    } else {
-      // Default sort by ID
-      return sortDirection === 'asc' 
-        ? (a.id || '').localeCompare(b.id || '')
-        : (b.id || '').localeCompare(a.id || '')
+  const filteredOrders = orders.filter((order) => {
+    // Apply search filter
+    if (searchTerm) {
+      const searchLower = searchTerm.toLowerCase();
+      const orderNumber = order.orderNumber.toLowerCase();
+      const customerName = typeof order.customer === 'string' 
+        ? order.customer.toLowerCase() 
+        : order.customer.name.toLowerCase();
+      
+      if (!orderNumber.includes(searchLower) && !customerName.includes(searchLower)) {
+        return false;
+      }
     }
-  })
+    
+    // Apply status filter
+    if (statusFilter !== 'all' && order.status !== statusFilter) {
+      return false;
+    }
+    
+    // Apply payment filter
+    if (paymentFilter !== 'all' && order.paymentStatus !== paymentFilter) {
+      return false;
+    }
+    
+    return true;
+  });
 
+  // Handle order status update
+  const handleUpdateOrderStatus = async (id: string, newStatus: OrderStatus) => {
+    try {
+      const ordersCollection = await getCollection<DbOrderDocument>('orders');
+      const filter = { _id: new ObjectId(id) };
+      const update = { $set: { status: newStatus, updatedAt: new Date() } };
+      
+      await ordersCollection.updateOne(filter, update);
+      
+      setOrders(orders.map(order => 
+        order._id === id 
+          ? { ...order, status: newStatus, updatedAt: new Date() } 
+          : order
+      ));
+    } catch (err) {
+      console.error('Error updating order status:', err);
+      alert('Failed to update order status');
+    }
+  };
+
+  // Handle order deletion
+  const handleDeleteOrder = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      const ordersCollection = await getCollection<DbOrderDocument>('orders');
+      const filter = { _id: new ObjectId(id) };
+      await ordersCollection.deleteOne(filter);
+      
+      setOrders(orders.filter(order => order._id !== id));
+    } catch (err) {
+      console.error('Error deleting order:', err);
+      alert('Failed to delete order');
+    }
+  };
+
+  // Handle sorting
   const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    if (field === sortField) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortField(field)
-      setSortDirection('desc')
+      setSortField(field);
+      setSortDirection('desc');
     }
-  }
+  };
 
+  // Get status icon
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'delivered':
-        return <CheckCircle className="h-4 w-4 text-green-500" />
+        return <CheckCircle className="w-4 h-4 text-green-500" />;
       case 'processing':
-        return <Clock className="h-4 w-4 text-blue-500" />
-      case 'pending':
-        return <Clock className="h-4 w-4 text-yellow-500" />
+        return <Loader2 className="w-4 h-4 text-yellow-500 animate-spin" />;
       case 'cancelled':
-        return <XCircle className="h-4 w-4 text-red-500" />
+        return <XCircle className="w-4 h-4 text-red-500" />;
       default:
-        return null
+        return <Clock className="w-4 h-4 text-gray-500" />;
     }
+  };
+
+  // Render loading state
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <span className="ml-2">Loading orders...</span>
+      </div>
+    );
   }
 
+  // Render error state
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+        <p className="text-red-700">{error}</p>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="mt-2 px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  // Render empty state
+  if (filteredOrders.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <ShoppingBag className="w-12 h-12 mx-auto text-gray-400" />
+        <h3 className="mt-2 text-lg font-medium text-gray-900">No orders found</h3>
+        <p className="mt-1 text-sm text-gray-500">
+          {searchTerm || statusFilter !== 'all' || paymentFilter !== 'all'
+            ? 'Try adjusting your search or filter criteria.'
+            : 'Get started by creating a new order.'}
+        </p>
+        <div className="mt-6">
+          <Link
+            href="/admin/orders/new"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+          >
+            New Order
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Render orders table
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Orders</h1>
-        <div className="flex space-x-2">
-          <button 
-            onClick={() => exportToCSV(orders, `soucey-orders-${getFormattedDate()}.csv`)}
-            className="bg-pink-600 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center"
+    <div className="px-4 sm:px-6 lg:px-8">
+      <div className="sm:flex sm:items-center">
+        <div className="sm:flex-auto">
+          <h1 className="text-xl font-semibold text-gray-900">Orders</h1>
+          <p className="mt-2 text-sm text-gray-700">
+            A list of all orders including their details and status.
+          </p>
+        </div>
+        <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+          <Link
+            href="/admin/orders/new"
+            className="inline-flex items-center justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:w-auto"
           >
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </button>
-          <button 
-            onClick={() => exportToJSON(orders, `soucey-orders-${getFormattedDate()}.json`)}
-            className="bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center"
-          >
-            <FileText className="h-4 w-4 mr-2" />
-            Export JSON
-          </button>
+            Add order
+          </Link>
         </div>
       </div>
-
-      {/* Filters and Search */}
-      <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <div className="flex flex-col md:flex-row gap-4">
-          <div className="flex-1 relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              placeholder="Search orders by ID, customer, email or phone..."
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+      
+      {/* Filters and search */}
+      <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="relative rounded-md shadow-sm w-full sm:w-64">
+          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+            <Search className="h-4 w-4 text-gray-400" />
           </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Filter className="h-5 w-5 text-gray-400" />
-              </div>
-              <select
-                className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md appearance-none"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="all">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="processing">Processing</option>
-                <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
-            </div>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Filter className="h-5 w-5 text-gray-400" />
-              </div>
-              <select
-                className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-md appearance-none"
-                value={paymentFilter}
-                onChange={(e) => setPaymentFilter(e.target.value)}
-              >
-                <option value="all">All Payments</option>
-                <option value="paid">Paid</option>
-                <option value="pending">Pending</option>
-                <option value="refunded">Refunded</option>
-                <option value="failed">Failed</option>
-              </select>
-            </div>
-          </div>
+          <input
+            type="text"
+            className="block w-full rounded-md border-gray-300 pl-10 focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+            placeholder="Search orders..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        
+        <div className="flex gap-2">
+          <select
+            className="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+            <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          
+          <select
+            className="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
+            value={paymentFilter}
+            onChange={(e) => setPaymentFilter(e.target.value)}
+          >
+            <option value="all">All Payments</option>
+            <option value="pending">Pending</option>
+            <option value="paid">Paid</option>
+            <option value="refunded">Refunded</option>
+          </select>
         </div>
       </div>
-
-      {/* Orders Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <button 
-                    className="flex items-center"
-                    onClick={() => handleSort('id')}
-                  >
-                    Order ID
-                    {sortField === 'id' && (
-                      sortDirection === 'asc' ? 
-                        <ChevronUp className="h-4 w-4 ml-1" /> : 
-                        <ChevronDown className="h-4 w-4 ml-1" />
-                    )}
-                  </button>
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Customer
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <button 
-                    className="flex items-center"
-                    onClick={() => handleSort('amount')}
-                  >
-                    Amount
-                    {sortField === 'amount' && (
-                      sortDirection === 'asc' ? 
-                        <ChevronUp className="h-4 w-4 ml-1" /> : 
-                        <ChevronDown className="h-4 w-4 ml-1" />
-                    )}
-                  </button>
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Payment
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <button 
-                    className="flex items-center"
-                    onClick={() => handleSort('date')}
-                  >
-                    Date
-                    {sortField === 'date' && (
-                      sortDirection === 'asc' ? 
-                        <ChevronUp className="h-4 w-4 ml-1" /> : 
-                        <ChevronDown className="h-4 w-4 ml-1" />
-                    )}
-                  </button>
-                </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {sortedOrders.map((order) => (
-                <tr 
-                  key={order.id}
-                  className={`hover:bg-gray-50 ${selectedOrder === order.id ? 'bg-pink-50' : ''}`}
-                >
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    <button 
-                      onClick={() => order.id && setSelectedOrder(selectedOrder === order.id ? null : order.id)}
-                      className="text-pink-600 hover:text-pink-900"
+      
+      {/* Orders table */}
+      <div className="mt-8 flex flex-col">
+        <div className="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
+          <div className="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
+            <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+              <table className="min-w-full divide-y divide-gray-300">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th 
+                      scope="col" 
+                      className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6 cursor-pointer"
+                      onClick={() => handleSort('orderNumber')}
                     >
-                      {order.id}
-                    </button>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    <div>{order.customer}</div>
-                    <div className="text-xs text-gray-400">{order.phone}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {order.amount}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full items-center
-                      ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : 
-                        order.status === 'processing' ? 'bg-blue-100 text-blue-800' : 
-                        order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                        'bg-red-100 text-red-800'}`}>
-                      {getStatusIcon(order.status)}
-                      <span className="ml-1">{order.status}</span>
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                      ${order.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' : 
-                        order.paymentStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                        order.paymentStatus === 'refunded' ? 'bg-purple-100 text-purple-800' : 
-                        'bg-red-100 text-red-800'}`}>
-                      {order.paymentStatus}
-                    </span>
-                    <div className="text-xs text-gray-400 mt-1">{order.paymentMethod}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {order.date}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button className="text-pink-600 hover:text-pink-900 mr-3">
-                      <Eye className="h-4 w-4" />
-                    </button>
-                    <button className="text-blue-600 hover:text-blue-900 mr-3">
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button className="text-red-600 hover:text-red-900">
-                      <Trash className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Order Details Expandable Section */}
-        {selectedOrder && (
-          <div className="border-t border-gray-200 p-6 bg-gray-50">
-            {orders.filter(order => order.id === selectedOrder).map(order => (
-              <div key={`details-${order.id}`}>
-                <h3 className="text-lg font-medium mb-4">Order Details</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                  <div className="bg-white p-4 rounded-lg shadow-sm">
-                    <h4 className="font-medium text-gray-700 mb-2">Customer Information</h4>
-                    <p className="text-sm mb-1"><span className="font-medium">Name:</span> {order.customer}</p>
-                    <p className="text-sm mb-1"><span className="font-medium">Email:</span> {order.email}</p>
-                    <p className="text-sm"><span className="font-medium">Phone:</span> {order.phone}</p>
-                  </div>
-                  
-                  <div className="bg-white p-4 rounded-lg shadow-sm">
-                    <h4 className="font-medium text-gray-700 mb-2">Delivery Information</h4>
-                    <p className="text-sm mb-1"><span className="font-medium">Address:</span> {order.address}</p>
-                    <p className="text-sm mb-1"><span className="font-medium">Status:</span> {order.status}</p>
-                  </div>
-                  
-                  <div className="bg-white p-4 rounded-lg shadow-sm">
-                    <h4 className="font-medium text-gray-700 mb-2">Payment Information</h4>
-                    <p className="text-sm mb-1"><span className="font-medium">Method:</span> {order.paymentMethod}</p>
-                    <p className="text-sm mb-1"><span className="font-medium">Status:</span> {order.paymentStatus}</p>
-                    <p className="text-sm"><span className="font-medium">Total:</span> {order.amount}</p>
-                  </div>
-                </div>
-                
-                <div className="bg-white p-4 rounded-lg shadow-sm">
-                  <h4 className="font-medium text-gray-700 mb-2">Order Items</h4>
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead>
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {order.items.map((item, index) => (
-                        <tr key={index}>
-                          <td className="px-4 py-2 text-sm">{item.name}</td>
-                          <td className="px-4 py-2 text-sm">{item.quantity}</td>
-                          <td className="px-4 py-2 text-sm text-right">{item.price}</td>
-                        </tr>
-                      ))}
-                      <tr className="bg-gray-50">
-                        <td className="px-4 py-2 text-sm font-medium" colSpan={2}>Total</td>
-                        <td className="px-4 py-2 text-sm font-medium text-right">{order.amount}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                
-                <div className="mt-6 flex justify-end space-x-3">
-                  <button className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md text-sm font-medium">
-                    Print Invoice
-                  </button>
-                  <button className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium">
-                    Update Status
-                  </button>
-                </div>
-              </div>
-            ))}
+                      <div className="flex items-center">
+                        Order
+                        {sortField === 'orderNumber' && (
+                          sortDirection === 'asc' ? 
+                            <ChevronUp className="ml-1 w-4 h-4" /> : 
+                            <ChevronDown className="ml-1 w-4 h-4" />
+                        )}
+                      </div>
+                    </th>
+                    <th 
+                      scope="col" 
+                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer"
+                      onClick={() => handleSort('customer')}
+                    >
+                      <div className="flex items-center">
+                        Customer
+                        {sortField === 'customer' && (
+                          sortDirection === 'asc' ? 
+                            <ChevronUp className="ml-1 w-4 h-4" /> : 
+                            <ChevronDown className="ml-1 w-4 h-4" />
+                        )}
+                      </div>
+                    </th>
+                    <th 
+                      scope="col" 
+                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+                    >
+                      Items
+                    </th>
+                    <th 
+                      scope="col" 
+                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer"
+                      onClick={() => handleSort('total')}
+                    >
+                      <div className="flex items-center">
+                        Total
+                        {sortField === 'total' && (
+                          sortDirection === 'asc' ? 
+                            <ChevronUp className="ml-1 w-4 h-4" /> : 
+                            <ChevronDown className="ml-1 w-4 h-4" />
+                        )}
+                      </div>
+                    </th>
+                    <th 
+                      scope="col" 
+                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+                    >
+                      Status
+                    </th>
+                    <th 
+                      scope="col" 
+                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
+                    >
+                      Payment
+                    </th>
+                    <th 
+                      scope="col" 
+                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer"
+                      onClick={() => handleSort('createdAt')}
+                    >
+                      <div className="flex items-center">
+                        Date
+                        {sortField === 'createdAt' && (
+                          sortDirection === 'asc' ? 
+                            <ChevronUp className="ml-1 w-4 h-4" /> : 
+                            <ChevronDown className="ml-1 w-4 h-4" />
+                        )}
+                      </div>
+                    </th>
+                    <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                      <span className="sr-only">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 bg-white">
+                  {filteredOrders.map((order) => (
+                    <tr key={order._id.toString()} className="hover:bg-gray-50">
+                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+                        {order.orderNumber}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        {typeof order.customer === 'string' ? order.customer : order.customer.name}
+                      </td>
+                      <td className="px-3 py-4 text-sm text-gray-500">
+                        {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        GH₵{order.total.toFixed(2)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4">
+                        <span 
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            order.status === 'delivered' 
+                              ? 'bg-green-100 text-green-800' 
+                              : order.status === 'processing'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : order.status === 'cancelled'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}
+                        >
+                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        <span 
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                            order.paymentStatus === 'paid' 
+                              ? 'bg-green-100 text-green-800' 
+                              : order.paymentStatus === 'pending'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        {new Date(order.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => router.push(`/admin/orders/${order._id}`)}
+                            className="text-primary-600 hover:text-primary-900"
+                            title="View order"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => router.push(`/admin/orders/${order._id}/edit`)}
+                            className="text-indigo-600 hover:text-indigo-900"
+                            title="Edit order"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteOrder(order._id.toString())}
+                            className="text-red-600 hover:text-red-900"
+                            title="Delete order"
+                          >
+                            <Trash className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        )}
+        </div>
+      </div>
+      
+      {/* Pagination */}
+      <div className="mt-4 flex items-center justify-between">
+        <div className="text-sm text-gray-700">
+          Showing <span className="font-medium">1</span> to{' '}
+          <span className="font-medium">{filteredOrders.length}</span> of{' '}
+          <span className="font-medium">{filteredOrders.length}</span> results
+        </div>
+        <div className="flex space-x-2">
+          <button
+            disabled={true}
+            className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Previous
+          </button>
+          <button
+            disabled={true}
+            className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+      
+      {/* Export buttons */}
+      <div className="mt-6 flex justify-end space-x-3">
+        <button
+          type="button"
+          onClick={() => exportToCSV(filteredOrders, 'orders')}
+          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+        >
+          <Download className="-ml-0.5 mr-1.5 h-4 w-4" />
+          CSV
+        </button>
+        <button
+          type="button"
+          onClick={() => exportToJSON(filteredOrders, 'orders')}
+          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+        >
+          <FileText className="-ml-0.5 mr-1.5 h-4 w-4" />
+          JSON
+        </button>
       </div>
     </div>
-  )
+  );
 }

@@ -1,321 +1,420 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { 
-  BarChart3, 
-  TrendingUp, 
-  DollarSign, 
-  ShoppingBag, 
-  Users, 
   Calendar, 
-  ArrowRight,
-  ArrowUp,
-  ArrowDown,
-  Filter
+  Download, 
+  FileText, 
+  TrendingUp, 
+  ShoppingBag, 
+  CreditCard, 
+  Users,
+  Utensils,
+  Loader
 } from 'lucide-react'
+import { fetchAnalyticsData } from '@/lib/admin-firestore'
+import { exportToCSV, exportToJSON, getFormattedDate } from '@/utils/export-data'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js'
+import { Line, Bar, Pie, Doughnut } from 'react-chartjs-2'
 
-// Mock data for analytics
-const revenueData = [
-  { month: 'Jan', amount: 12500 },
-  { month: 'Feb', amount: 18200 },
-  { month: 'Mar', amount: 22400 },
-  { month: 'Apr', amount: 28700 },
-  { month: 'May', amount: 32500 }
-]
+// Register ChartJS components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend
+)
 
-const ordersData = [
-  { month: 'Jan', count: 145 },
-  { month: 'Feb', count: 210 },
-  { month: 'Mar', count: 258 },
-  { month: 'Apr', count: 312 },
-  { month: 'May', count: 356 }
-]
-
-const usersData = [
-  { month: 'Jan', count: 850 },
-  { month: 'Feb', count: 1250 },
-  { month: 'Mar', count: 1680 },
-  { month: 'Apr', count: 2240 },
-  { month: 'May', count: 2856 }
-]
-
-const popularItems = [
-  { name: 'Jollof Rice with Chicken', orders: 456, revenue: 'GHS 16,416.00' },
-  { name: 'Banku with Tilapia', orders: 312, revenue: 'GHS 18,720.00' },
-  { name: 'Pizza Supreme', orders: 287, revenue: 'GHS 16,068.63' },
-  { name: 'Fufu with Light Soup', orders: 245, revenue: 'GHS 15,925.00' },
-  { name: 'Kelewele', orders: 198, revenue: 'GHS 3,760.02' }
-]
-
-const topRestaurants = [
-  { name: 'Ghana Kitchen', orders: 785, revenue: 'GHS 42,500.00' },
-  { name: 'Pizza Corner', orders: 654, revenue: 'GHS 36,620.00' },
-  { name: 'Accra Delights', orders: 542, revenue: 'GHS 28,750.00' },
-  { name: 'Spice Route', orders: 423, revenue: 'GHS 24,120.00' },
-  { name: 'Taste of China', orders: 312, revenue: 'GHS 18,720.00' }
-]
+interface AnalyticsData {
+  revenueData: {
+    labels: string[];
+    data: number[];
+  };
+  ordersData: {
+    labels: string[];
+    data: number[];
+  };
+  usersData: {
+    labels: string[];
+    data: number[];
+  };
+  categoryData: {
+    labels: string[];
+    data: number[];
+  };
+  topSellingItems: {
+    name: string;
+    quantity: number;
+    revenue: number;
+  }[];
+  topRestaurants: {
+    name: string;
+    orders: number;
+    revenue: number;
+  }[];
+}
 
 export default function AnalyticsPage() {
-  const [timeRange, setTimeRange] = useState('last_5_months')
+  const [timeRange, setTimeRange] = useState('last_7_days')
+  const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Calculate current month stats
-  const currentMonthRevenue = revenueData[revenueData.length - 1].amount
-  const previousMonthRevenue = revenueData[revenueData.length - 2].amount
-  const revenueChange = ((currentMonthRevenue - previousMonthRevenue) / previousMonthRevenue) * 100
-
-  const currentMonthOrders = ordersData[ordersData.length - 1].count
-  const previousMonthOrders = ordersData[ordersData.length - 2].count
-  const ordersChange = ((currentMonthOrders - previousMonthOrders) / previousMonthOrders) * 100
-
-  const currentMonthUsers = usersData[usersData.length - 1].count
-  const previousMonthUsers = usersData[usersData.length - 2].count
-  const usersChange = ((currentMonthUsers - previousMonthUsers) / previousMonthUsers) * 100
-
-  // Calculate max values for chart scaling
-  const maxRevenue = Math.max(...revenueData.map(item => item.amount))
-  const maxOrders = Math.max(...ordersData.map(item => item.count))
-  const maxUsers = Math.max(...usersData.map(item => item.count))
+  useEffect(() => {
+    const loadAnalyticsData = async () => {
+      try {
+        setIsLoading(true)
+        const data = await fetchAnalyticsData(timeRange)
+        setAnalyticsData(data)
+      } catch (err) {
+        console.error('Error loading analytics data:', err)
+        setError('Failed to load analytics data. Please try again.')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    loadAnalyticsData()
+  }, [timeRange])
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Analytics</h1>
-        <div className="flex items-center">
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Filter className="h-5 w-5 text-gray-400" />
-            </div>
-            <select
-              className="block pl-10 pr-10 py-2 border border-gray-300 rounded-md appearance-none"
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value)}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <select 
+            className="px-3 py-2 border rounded-md text-sm w-full sm:w-auto"
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+          >
+            <option value="last_7_days">Last 7 days</option>
+            <option value="last_30_days">Last 30 days</option>
+            <option value="last_90_days">Last 90 days</option>
+            <option value="all_time">All time</option>
+          </select>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button 
+              onClick={() => {
+                if (analyticsData) {
+                  // Convert analytics data to array format for CSV export
+                  const exportData = [
+                    // Revenue data
+                    ...analyticsData.revenueData.labels.map((label, index) => ({
+                      type: 'Revenue',
+                      label,
+                      value: analyticsData.revenueData.data[index]
+                    })),
+                    // Orders data
+                    ...analyticsData.ordersData.labels.map((label, index) => ({
+                      type: 'Orders',
+                      label,
+                      value: analyticsData.ordersData.data[index]
+                    })),
+                    // Top selling items
+                    ...analyticsData.topSellingItems.map(item => ({
+                      type: 'Top Item',
+                      name: item.name,
+                      quantity: item.quantity,
+                      revenue: item.revenue
+                    })),
+                    // Top restaurants
+                    ...analyticsData.topRestaurants.map(restaurant => ({
+                      type: 'Top Restaurant',
+                      name: restaurant.name,
+                      orders: restaurant.orders,
+                      revenue: restaurant.revenue
+                    }))
+                  ];
+                  exportToCSV(exportData, `analytics-${getFormattedDate()}.csv`);
+                }
+              }}
+              className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 flex-1 sm:flex-initial"
+              disabled={isLoading || !analyticsData}
             >
-              <option value="last_7_days">Last 7 Days</option>
-              <option value="last_30_days">Last 30 Days</option>
-              <option value="last_90_days">Last 90 Days</option>
-              <option value="last_5_months">Last 5 Months</option>
-              <option value="last_year">Last Year</option>
-            </select>
+              <Download className="h-4 w-4 mr-1" />
+              Export CSV
+            </button>
+            <button 
+              onClick={() => analyticsData && exportToJSON(analyticsData, `analytics-${getFormattedDate()}.json`)}
+              className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 flex-1 sm:flex-initial"
+              disabled={isLoading || !analyticsData}
+            >
+              <FileText className="h-4 w-4 mr-1" />
+              Export JSON
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Total Revenue</p>
-              <p className="text-2xl font-semibold mt-1">GHS {currentMonthRevenue.toLocaleString()}</p>
-            </div>
-            <div className="bg-green-50 p-3 rounded-full">
-              <DollarSign className="h-6 w-6 text-green-600" />
-            </div>
-          </div>
-          <div className="flex items-center">
-            {revenueChange >= 0 ? (
-              <ArrowUp className="h-4 w-4 text-green-500 mr-1" />
-            ) : (
-              <ArrowDown className="h-4 w-4 text-red-500 mr-1" />
-            )}
-            <span className={revenueChange >= 0 ? 'text-green-500' : 'text-red-500'}>
-              {Math.abs(revenueChange).toFixed(1)}%
-            </span>
-            <span className="text-gray-500 text-sm ml-1">from last month</span>
-          </div>
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader className="w-12 h-12 text-pink-600 animate-spin mb-4" />
+          <p className="text-gray-600">Loading analytics data...</p>
         </div>
-        
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Total Orders</p>
-              <p className="text-2xl font-semibold mt-1">{currentMonthOrders}</p>
-            </div>
-            <div className="bg-blue-50 p-3 rounded-full">
-              <ShoppingBag className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-          <div className="flex items-center">
-            {ordersChange >= 0 ? (
-              <ArrowUp className="h-4 w-4 text-green-500 mr-1" />
-            ) : (
-              <ArrowDown className="h-4 w-4 text-red-500 mr-1" />
-            )}
-            <span className={ordersChange >= 0 ? 'text-green-500' : 'text-red-500'}>
-              {Math.abs(ordersChange).toFixed(1)}%
-            </span>
-            <span className="text-gray-500 text-sm ml-1">from last month</span>
-          </div>
+      )}
+      
+      {/* Error State */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-8">
+          {error}
         </div>
-        
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-start mb-4">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Total Users</p>
-              <p className="text-2xl font-semibold mt-1">{currentMonthUsers}</p>
+      )}
+      
+      {/* Analytics Content */}
+      {!isLoading && !error && analyticsData && (
+        <div className="space-y-8">
+          {/* Revenue & Orders Charts */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base sm:text-lg font-medium text-gray-900">Revenue</h2>
+                <div className="bg-pink-100 p-1.5 sm:p-2 rounded-full">
+                  <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" />
+                </div>
+              </div>
+              <div className="h-56 sm:h-64">
+                <Line 
+                  data={{
+                    labels: analyticsData.revenueData.labels,
+                    datasets: [
+                      {
+                        label: 'Revenue (GHS)',
+                        data: analyticsData.revenueData.data,
+                        borderColor: '#ec4899',
+                        backgroundColor: 'rgba(236, 72, 153, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                      },
+                    ],
+                  }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: {
+                        position: 'top',
+                      },
+                      title: {
+                        display: false,
+                      },
+                    },
+                    scales: {
+                      y: {
+                        beginAtZero: true,
+                        ticks: {
+                          callback: (value) => `GHS ${value}`
+                        }
+                      }
+                    }
+                  }}
+                />
+              </div>
             </div>
-            <div className="bg-purple-50 p-3 rounded-full">
-              <Users className="h-6 w-6 text-purple-600" />
-            </div>
-          </div>
-          <div className="flex items-center">
-            {usersChange >= 0 ? (
-              <ArrowUp className="h-4 w-4 text-green-500 mr-1" />
-            ) : (
-              <ArrowDown className="h-4 w-4 text-red-500 mr-1" />
-            )}
-            <span className={usersChange >= 0 ? 'text-green-500' : 'text-red-500'}>
-              {Math.abs(usersChange).toFixed(1)}%
-            </span>
-            <span className="text-gray-500 text-sm ml-1">from last month</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-medium">Revenue Overview</h2>
-            <div className="flex items-center text-sm text-pink-600">
-              <span className="mr-1">View Details</span>
-              <ArrowRight className="h-4 w-4" />
+            
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base sm:text-lg font-medium text-gray-900">Orders</h2>
+                <div className="bg-pink-100 p-1.5 sm:p-2 rounded-full">
+                  <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" />
+                </div>
+              </div>
+              <div className="h-56 sm:h-64">
+                <Bar
+                  data={{
+                    labels: analyticsData.ordersData.labels,
+                    datasets: [
+                      {
+                        label: 'Number of Orders',
+                        data: analyticsData.ordersData.data,
+                        backgroundColor: 'rgba(236, 72, 153, 0.7)',
+                        borderRadius: 4,
+                      },
+                    ],
+                  }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: {
+                        position: 'top',
+                      },
+                      title: {
+                        display: false,
+                      },
+                    },
+                    scales: {
+                      y: {
+                        beginAtZero: true,
+                      }
+                    }
+                  }}
+                />
+              </div>
             </div>
           </div>
           
-          {/* Simple bar chart for revenue */}
-          <div className="h-64 flex items-end space-x-2">
-            {revenueData.map((item, index) => (
-              <div key={index} className="flex-1 flex flex-col items-center">
-                <div 
-                  className="w-full bg-pink-500 rounded-t"
-                  style={{ 
-                    height: `${(item.amount / maxRevenue) * 100}%`,
-                    minHeight: '20px'
-                  }}
-                ></div>
-                <div className="text-xs mt-2 text-gray-600">{item.month}</div>
+          {/* Users & Categories Charts */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base sm:text-lg font-medium text-gray-900">New Users</h2>
+                <div className="bg-pink-100 p-1.5 sm:p-2 rounded-full">
+                  <Users className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" />
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-medium">Orders Overview</h2>
-            <div className="flex items-center text-sm text-pink-600">
-              <span className="mr-1">View Details</span>
-              <ArrowRight className="h-4 w-4" />
+              <div className="h-56 sm:h-64">
+                <Line
+                  data={{
+                    labels: analyticsData.usersData.labels,
+                    datasets: [
+                      {
+                        label: 'New Users',
+                        data: analyticsData.usersData.data,
+                        borderColor: '#0ea5e9',
+                        backgroundColor: 'rgba(14, 165, 233, 0.1)',
+                        fill: true,
+                        tension: 0.4,
+                      },
+                    ],
+                  }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: {
+                        position: 'top',
+                      },
+                      title: {
+                        display: false,
+                      },
+                    },
+                    scales: {
+                      y: {
+                        beginAtZero: true,
+                      }
+                    }
+                  }}
+                />
+              </div>
+            </div>
+            
+            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base sm:text-lg font-medium text-gray-900">Popular Categories</h2>
+                <div className="bg-pink-100 p-1.5 sm:p-2 rounded-full">
+                  <Utensils className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" />
+                </div>
+              </div>
+              <div className="h-56 sm:h-64">
+                <Doughnut
+                  data={{
+                    labels: analyticsData.categoryData.labels,
+                    datasets: [
+                      {
+                        label: 'Orders by Category',
+                        data: analyticsData.categoryData.data,
+                        backgroundColor: [
+                          'rgba(236, 72, 153, 0.7)',
+                          'rgba(14, 165, 233, 0.7)',
+                          'rgba(249, 115, 22, 0.7)',
+                          'rgba(132, 204, 22, 0.7)',
+                          'rgba(168, 85, 247, 0.7)',
+                          'rgba(234, 179, 8, 0.7)',
+                        ],
+                        borderWidth: 1,
+                      },
+                    ],
+                  }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: {
+                        position: 'right',
+                      },
+                      title: {
+                        display: false,
+                      },
+                    },
+                  }}
+                />
+              </div>
             </div>
           </div>
           
-          {/* Simple bar chart for orders */}
-          <div className="h-64 flex items-end space-x-2">
-            {ordersData.map((item, index) => (
-              <div key={index} className="flex-1 flex flex-col items-center">
-                <div 
-                  className="w-full bg-blue-500 rounded-t"
-                  style={{ 
-                    height: `${(item.count / maxOrders) * 100}%`,
-                    minHeight: '20px'
-                  }}
-                ></div>
-                <div className="text-xs mt-2 text-gray-600">{item.month}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Popular Items & Top Restaurants */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 className="text-lg font-medium">Popular Menu Items</h2>
-            <div className="flex items-center text-sm text-pink-600">
-              <span className="mr-1">View All</span>
-              <ArrowRight className="h-4 w-4" />
+          {/* Top Selling Items */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-4 sm:p-6 border-b border-gray-100">
+              <h2 className="text-base sm:text-lg font-medium text-gray-900">Top Selling Items</h2>
             </div>
-          </div>
-          <div className="p-6">
-            <table className="min-w-full">
-              <thead>
-                <tr>
-                  <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider pb-3">Item</th>
-                  <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider pb-3">Orders</th>
-                  <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider pb-3">Revenue</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {popularItems.map((item, index) => (
-                  <tr key={index}>
-                    <td className="py-3 text-sm font-medium">{item.name}</td>
-                    <td className="py-3 text-sm text-right">{item.orders}</td>
-                    <td className="py-3 text-sm text-right">{item.revenue}</td>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                    <th scope="col" className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                    <th scope="col" className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-            <h2 className="text-lg font-medium">Top Restaurants</h2>
-            <div className="flex items-center text-sm text-pink-600">
-              <span className="mr-1">View All</span>
-              <ArrowRight className="h-4 w-4" />
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {analyticsData.topSellingItems.map((item, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">{item.name}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">{item.quantity}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">GHS {item.revenue.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-          <div className="p-6">
-            <table className="min-w-full">
-              <thead>
-                <tr>
-                  <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider pb-3">Restaurant</th>
-                  <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider pb-3">Orders</th>
-                  <th className="text-right text-xs font-medium text-gray-500 uppercase tracking-wider pb-3">Revenue</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {topRestaurants.map((restaurant, index) => (
-                  <tr key={index}>
-                    <td className="py-3 text-sm font-medium">{restaurant.name}</td>
-                    <td className="py-3 text-sm text-right">{restaurant.orders}</td>
-                    <td className="py-3 text-sm text-right">{restaurant.revenue}</td>
+          
+          {/* Top Restaurants */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-4 sm:p-6 border-b border-gray-100">
+              <h2 className="text-base sm:text-lg font-medium text-gray-900">Top Restaurants</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Restaurant</th>
+                    <th scope="col" className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orders</th>
+                    <th scope="col" className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      {/* User Growth Chart */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-medium">User Growth</h2>
-          <div className="flex items-center text-sm text-pink-600">
-            <span className="mr-1">View Details</span>
-            <ArrowRight className="h-4 w-4" />
-          </div>
-        </div>
-        
-        {/* Simple bar chart for users */}
-        <div className="h-64 flex items-end space-x-2">
-          {usersData.map((item, index) => (
-            <div key={index} className="flex-1 flex flex-col items-center">
-              <div 
-                className="w-full bg-purple-500 rounded-t"
-                style={{ 
-                  height: `${(item.count / maxUsers) * 100}%`,
-                  minHeight: '20px'
-                }}
-              ></div>
-              <div className="text-xs mt-2 text-gray-600">{item.month}</div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {analyticsData.topRestaurants.map((restaurant, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">{restaurant.name}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">{restaurant.orders}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">GHS {restaurant.revenue.toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

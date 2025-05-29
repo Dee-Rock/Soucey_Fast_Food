@@ -29,13 +29,15 @@ const AboutPage = () => {
               </Link>
             </Button>
           </div>
-          <div className="md:w-1/2">
-            <div className="relative h-64 md:h-80 w-full rounded-lg overflow-hidden">
+          <div className="md:w-1/2 flex justify-center">
+            <div className="relative w-full max-w-md h-80 rounded-2xl overflow-hidden shadow-xl border-4 border-white transform rotate-2 hover:rotate-0 transition-transform duration-300">
               <Image 
-                src="/hero-food.svg" 
+                src="/Soucey.jpeg" 
                 alt="About Soucey" 
                 fill
                 className="object-cover"
+                priority
+                sizes="(max-width: 768px) 100vw, 50vw"
               />
             </div>
           </div>

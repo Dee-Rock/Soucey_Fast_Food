@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from './ui/button';
 import Script from 'next/script';
 import { PaystackProps } from '@/types/paystack';
@@ -26,6 +27,7 @@ export default function PaystackPayment({
 }: PaystackPaymentProps) {
   const [reference] = useState(`ref-${Date.now()}`);
   const [isClient, setIsClient] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     setIsClient(true);
@@ -36,64 +38,122 @@ export default function PaystackPayment({
     console.log('Paystack script loaded successfully');
   };
 
+  const validateEmail = (email: string): boolean => {
+    // Simple email validation regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
+  };
+
+  const validatePhone = (phone: string): boolean => {
+    // Basic phone validation for Ghanaian numbers (starts with 0, 233, or +233)
+    const phoneRegex = /^(?:\+?233|0)[0-9]{9}$/;
+    return phoneRegex.test(phone.trim());
+  };
+
   const handlePayment = () => {
     if (!isClient || typeof window.PaystackPop === 'undefined') {
       console.error('Paystack not loaded or not in client environment');
+      alert('Payment service is not available. Please try again later.');
       return;
     }
     
-    // Validate required fields and log values for debugging
-    console.log('Payment validation values:', { email, name, phone, amount });
+    // Trim and validate all input fields
+    const trimmedEmail = email?.trim() || '';
+    const trimmedName = name?.trim() || '';
+    const trimmedPhone = phone?.trim() || '';
     
-    if (!email || email.trim() === '') {
-      console.error('Missing email');
-      alert('Please provide your email address to proceed with payment.');
+    // Log values for debugging
+    console.log('Payment validation values:', { 
+      email: trimmedEmail, 
+      name: trimmedName, 
+      phone: trimmedPhone, 
+      amount 
+    });
+    
+    // Validate email
+    if (!trimmedEmail) {
+      console.error('Email is required');
+      alert('Please enter your email address to proceed with payment.');
       return;
     }
     
-    if (!name || name.trim() === '') {
-      console.error('Missing name');
-      alert('Please provide your full name to proceed with payment.');
+    if (!validateEmail(trimmedEmail)) {
+      console.error('Invalid email format');
       return;
     }
-    
-    if (!phone || phone.trim() === '') {
-      console.error('Missing phone');
-      alert('Please provide your phone number to proceed with payment.');
+
+    // Validate phone
+    if (!validatePhone(trimmedPhone)) {
+      console.error('Invalid phone number:', phone);
+      alert('Please enter a valid Ghanaian phone number (e.g., 0241234567)');
       return;
     }
-    
-    if (amount <= 0) {
-      console.error('Invalid amount');
+
+    // Validate amount
+    if (isNaN(amount) || amount <= 0) {
+      console.error('Invalid amount:', amount);
       alert('Invalid payment amount. Please check your cart and try again.');
       return;
     }
-    
-    // Use the global PaystackPop object that's loaded via script
+
+    // Ensure Paystack is loaded
+    if (typeof window === 'undefined' || !window.PaystackPop) {
+      console.error('Paystack not loaded');
+      alert('Payment service is not available. Please try again.');
+      return;
+    }
+
     // Setup Paystack configuration
     const paystackConfig: any = {
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY || '',
-      email,
-      amount: amount * 100, // Paystack amount is in kobo (multiply by 100)
+      email: trimmedEmail,
+      amount: Math.round(amount * 100), // Convert to kobo
       ref: reference,
-      firstname: name.split(' ')[0],
-      lastname: name.split(' ').slice(1).join(' '),
-      phone,
+      firstname: trimmedName.split(' ')[0] || 'Customer',
+      lastname: trimmedName.split(' ').slice(1).join(' ').trim() || 'Name',
+      phone: trimmedPhone,
       currency: 'GHS',
-      channels,
-      label: `${name}'s Food Order`,
-      onSuccess: (transaction: any) => {
-        console.log('Payment successful!', transaction);
-        // Make sure we're calling the success callback with a slight delay
-        // This ensures the Paystack modal has time to close properly
-        setTimeout(() => {
-          console.log('Executing success callback with reference:', transaction.reference);
-          onSuccess(transaction.reference);
-        }, 500);
+      channels: channels || ['card', 'bank', 'ussd', 'mobile_money'],
+      callback: (response: any) => {
+        console.log('Paystack callback:', response);
+        try {
+          // Store payment reference
+          localStorage.setItem('lastPaymentReference', response.reference);
+
+          // Clear cart
+          localStorage.removeItem('cart');
+
+          // Call success handler
+          onSuccess(response.reference);
+
+          // Redirect to orders page
+          setTimeout(() => {
+            window.location.href = '/my-orders';
+          }, 1500);
+        } catch (error) {
+          console.error('Error in payment callback:', error);
+          window.location.href = '/my-orders';
+        }
       },
-      onCancel: onClose
+      onClose: () => {
+        console.log('Payment window closed');
+        onClose();
+      }
     };
-    
+
+    // Add mobile money provider if specified
+    if (mobileMoneyProvider) {
+      paystackConfig.metadata = {
+        custom_fields: [
+          {
+            display_name: 'Mobile Money',
+            variable_name: 'mobile_money',
+            value: mobileMoneyProvider
+          }
+        ]
+      };
+    }
+
     // Add mobile money provider if mobile_money is in channels
     if (channels.includes('mobile_money') && mobileMoneyProvider) {
       // For Paystack, we need to specify the mobile money provider in metadata
@@ -107,7 +167,7 @@ export default function PaystackPayment({
           }
         ]
       };
-      
+
       // Set the mobile money provider in the transaction data
       // This helps Paystack route to the correct mobile money provider
       if (mobileMoneyProvider === 'mtn') {
@@ -118,7 +178,7 @@ export default function PaystackPayment({
         paystackConfig.mobile_money_provider = 'tgo';
       }
     }
-    
+
     const paystack = window.PaystackPop.setup(paystackConfig);
     paystack.openIframe();
   };
@@ -129,23 +189,20 @@ export default function PaystackPayment({
 
   return (
     <div className="w-full">
-      {/* Load Paystack script */}
       <Script
         src="https://js.paystack.co/v1/inline.js"
-        onLoad={handlePaystackScriptLoad}
         strategy="lazyOnload"
+        onLoad={handlePaystackScriptLoad}
       />
-      
-      <Button 
-        onClick={handlePayment}
-        className="w-full bg-pink-500 hover:bg-pink-600 text-white"
+      <Button
+        onClick={(e) => {
+          e.preventDefault();
+          handlePayment();
+        }}
+        className="w-full bg-pink-600 hover:bg-pink-700 text-white py-2 px-4 rounded-md font-medium transition-colors"
         disabled={!isClient}
       >
-        {channels.includes('mobile_money') && !channels.includes('card') 
-          ? 'Pay with Mobile Money' 
-          : channels.includes('card') && !channels.includes('mobile_money')
-          ? 'Pay with Card'
-          : 'Make Payment'}
+        {isClient ? 'Pay Now' : 'Loading...'}
       </Button>
     </div>
   );

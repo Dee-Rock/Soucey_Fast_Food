@@ -154,7 +154,8 @@ const orders: Omit<Order, 'id' | 'createdAt'>[] = [
       { name: 'Jollof Rice with Chicken', quantity: 2, price: '35.00' },
       { name: 'Kelewele', quantity: 1, price: '15.00' }
     ],
-    address: '123 Independence Ave, Accra'
+    address: '123 Independence Ave, Accra',
+    notes: ''
   },
   {
     customer: 'Ama Darko',
@@ -168,7 +169,8 @@ const orders: Omit<Order, 'id' | 'createdAt'>[] = [
     items: [
       { name: 'Margherita Pizza', quantity: 1, price: '45.00' }
     ],
-    address: '45 Airport Road, Accra'
+    address: '45 Airport Road, Accra',
+    notes: ''
   },
   {
     customer: 'Kofi Boateng',
@@ -180,10 +182,11 @@ const orders: Omit<Order, 'id' | 'createdAt'>[] = [
     paymentMethod: 'cash',
     date: '2025-05-25',
     items: [
-      { name: 'Butter Chicken', quantity: 1, price: '50.00' },
-      { name: 'Naan Bread', quantity: 2, price: '20.00' }
+      { name: 'Banku with Tilapia', quantity: 1, price: '40.00' },
+      { name: 'Shito', quantity: 1, price: '5.00' }
     ],
-    address: '78 Cantonments Road, Accra'
+    address: '456 Liberation Road, Accra',
+    notes: ''
   }
 ];
 

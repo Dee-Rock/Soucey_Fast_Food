@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { 
   CreditCard, 
   Download, 
@@ -14,10 +15,26 @@ import {
   XCircle
 } from 'lucide-react'
 import { exportToCSV, exportToJSON, getFormattedDate } from '@/utils/export-data'
-import { getCollection, deleteDocument, updateDocument, Payment } from '@/lib/firestore'
+import { connectToDatabase } from '@/lib/mongodb'
+import { IPayment as Payment } from '@/models/Payment'
 
-// Mock data will be replaced with Firestore data
-const mockPayments: Payment[] = [
+// Payment type for the UI (doesn't include MongoDB-specific fields)
+interface UIPayment {
+  id: string;
+  orderId: string;
+  customer: string;
+  amount: string;
+  method: 'mobile_money' | 'card' | 'cash' | 'other';
+  provider: string;
+  status: 'pending' | 'successful' | 'failed' | 'refunded' | 'cancelled';
+  reference: string;
+  date: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+// Mock data will be replaced with MongoDB data
+const mockPayments: UIPayment[] = [
   {
     id: 'PAY-001',
     orderId: 'ORD-001',
@@ -98,80 +115,107 @@ const mockPayments: Payment[] = [
 ]
 
 export default function PaymentsPage() {
-  const [payments, setPayments] = useState<Payment[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+  const [payments, setPayments] = useState<UIPayment[]>([])
+  const [filteredPayments, setFilteredPayments] = useState<UIPayment[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
-  const [methodFilter, setMethodFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [sortField, setSortField] = useState('date')
-  const [sortDirection, setSortDirection] = useState('desc')
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [methodFilter, setMethodFilter] = useState<string>('all')
+  const [sortField, setSortField] = useState<keyof UIPayment>('date')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [selectedPayments, setSelectedPayments] = useState<string[]>([])
   const [isUpdating, setIsUpdating] = useState(false)
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [selectedPayment, setSelectedPayment] = useState<UIPayment | null>(null)
 
-  // Fetch payments from Firestore
+  // Fetch payments from MongoDB
   useEffect(() => {
-    const fetchPayments = async () => {
-      setLoading(true)
+    const loadPayments = async () => {
       try {
-        const paymentsData = await getCollection<Payment>('payments')
-        setPayments(paymentsData)
-        setError('')
+        setIsLoading(true)
+        const { db } = await connectToDatabase()
+        
+        if (!db) {
+          throw new Error('Failed to connect to database')
+        }
+        
+        // Get all payments
+        const payments = await db.collection('payments').find({}).toArray()
+        
+        // Map to UIPayment format
+        const formattedPayments: UIPayment[] = payments.map((payment: any) => ({
+          id: payment._id?.toString() || `temp-${Math.random().toString(36).substr(2, 9)}`,
+          orderId: payment.orderId?.toString() || '',
+          customer: payment.customer || 'Unknown',
+          amount: payment.amount || '0',
+          method: payment.method || 'other',
+          provider: payment.provider || 'Unknown',
+          status: payment.status || 'pending',
+          reference: payment.reference || '',
+          date: payment.createdAt ? new Date(payment.createdAt).toLocaleString() : new Date().toLocaleString(),
+          createdAt: payment.createdAt ? new Date(payment.createdAt) : new Date(),
+          updatedAt: payment.updatedAt ? new Date(payment.updatedAt) : new Date()
+        }))
+        
+        setPayments(formattedPayments)
+        setFilteredPayments(formattedPayments)
       } catch (err) {
-        console.error('Error fetching payments:', err)
-        setError('Failed to load payments. Please try again.')
-        // Use mock data as fallback
-        setPayments(mockPayments)
+        console.error('Error loading payments:', err)
+        setError('Failed to load payments. Using mock data.')
+        // Fallback to mock data in development
+        if (process.env.NODE_ENV === 'development') {
+          setPayments(mockPayments)
+          setFilteredPayments(mockPayments)
+        }
       } finally {
-        setLoading(false)
+        setIsLoading(false)
       }
     }
-
-    fetchPayments()
+    
+    loadPayments()
   }, [])
 
-  // Filter payments based on search term and filters
-  const filteredPayments = payments.filter(payment => {
-    const matchesSearch = 
-      (payment.id?.toLowerCase().includes(searchTerm.toLowerCase()) || false) ||
-      payment.orderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.reference.toLowerCase().includes(searchTerm.toLowerCase())
+  // Filter payments based on search query and filters
+  useEffect(() => {
+    const filtered = payments.filter(payment => {
+      // Search filter
+      const searchTermLower = searchTerm.toLowerCase()
+      const matchesSearch = searchTerm === '' || 
+        (payment.id?.toLowerCase().includes(searchTermLower) || false) ||
+        (payment.orderId?.toLowerCase().includes(searchTermLower) || false) ||
+        (payment.customer?.toLowerCase().includes(searchTermLower) || false) ||
+        (payment.reference?.toLowerCase().includes(searchTermLower) || false)
+      
+      // Status filter
+      const matchesStatus = statusFilter === 'all' || payment.status === statusFilter
+      
+      // Method filter
+      const matchesMethod = methodFilter === 'all' || payment.method === methodFilter
+      
+      return matchesSearch && matchesStatus && matchesMethod
+    })
     
-    const matchesMethod = methodFilter === 'all' || payment.method === methodFilter
-    const matchesStatus = statusFilter === 'all' || payment.status === statusFilter
+    // Sort the filtered results
+    const sorted = [...filtered].sort((a, b) => {
+      // Handle potential undefined values
+      const aValue = a[sortField] || ''
+      const bValue = b[sortField] || ''
+      
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
     
-    return matchesSearch && matchesMethod && matchesStatus
-  })
+    setFilteredPayments(sorted)
+  }, [payments, searchTerm, statusFilter, methodFilter, sortField, sortDirection])
 
-  // Sort payments
-  const sortedPayments = [...filteredPayments].sort((a, b) => {
-    if (sortField === 'date') {
-      return sortDirection === 'asc' 
-        ? new Date(a.date).getTime() - new Date(b.date).getTime()
-        : new Date(b.date).getTime() - new Date(a.date).getTime()
-    } else if (sortField === 'amount') {
-      const aAmount = parseFloat(a.amount.replace('GHS ', ''))
-      const bAmount = parseFloat(b.amount.replace('GHS ', ''))
-      return sortDirection === 'asc' ? aAmount - bAmount : bAmount - aAmount
-    } else {
-      // Default sort by ID
-      const aId = a.id || ''
-      const bId = b.id || ''
-      return sortDirection === 'asc' 
-        ? aId.localeCompare(bId)
-        : bId.localeCompare(aId)
-    }
-  })
-
-  const handleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortField(field)
-      setSortDirection('desc')
-    }
+  // Handle sort
+  const handleSort = (field: keyof UIPayment) => {
+    const direction = sortField === field && sortDirection === 'asc' ? 'desc' : 'asc'
+    setSortField(field)
+    setSortDirection(direction)
   }
 
   // Handle payment deletion
@@ -181,40 +225,132 @@ export default function PaymentsPage() {
     if (window.confirm('Are you sure you want to delete this payment?')) {
       setIsDeleting(true)
       try {
-        const success = await deleteDocument('payments', id)
-        if (success) {
+        const { db } = await connectToDatabase()
+        if (!db) throw new Error('Failed to connect to database')
+        
+        const { ObjectId } = await import('mongodb')
+        const result = await db.collection('payments').deleteOne({ _id: new ObjectId(id) })
+        
+        if (result.deletedCount > 0) {
           setPayments(payments.filter(payment => payment.id !== id))
         } else {
-          throw new Error('Failed to delete payment')
+          throw new Error('Payment not found or already deleted')
         }
       } catch (err) {
         console.error('Error deleting payment:', err)
         setError('Failed to delete payment. Please try again.')
       } finally {
-        setIsDeleting(false)
+        setIsUpdating(false)
       }
     }
   }
 
   // Handle payment status update
-  const handleUpdatePaymentStatus = async (id: string, newStatus: Payment['status']) => {
-    if (!id) return
+  const handleUpdatePaymentStatus = async (paymentId: string, newStatus: UIPayment['status']) => {
+    if (!paymentId) return
     
-    setIsUpdating(true)
     try {
-      const success = await updateDocument<Payment>('payments', id, { status: newStatus })
-      if (success) {
-        setPayments(payments.map(payment => 
-          payment.id === id ? { ...payment, status: newStatus } : payment
-        ))
+      setIsUpdating(true)
+      const { db } = await connectToDatabase()
+      
+      if (!db) {
+        throw new Error('Failed to connect to database')
+      }
+      
+      // Only proceed if it's a real ID (not a temp ID)
+      if (paymentId.startsWith('temp-')) {
+        // Just update local state for temp IDs
+        setPayments(prevPayments => 
+          prevPayments.map(payment => 
+            payment.id === paymentId 
+              ? { ...payment, status: newStatus } 
+              : payment
+          )
+        )
+        
+        setFilteredPayments(prevPayments => 
+          prevPayments.map(payment => 
+            payment.id === paymentId 
+              ? { ...payment, status: newStatus } 
+              : payment
+          )
+        )
+        
+        alert(`Payment status updated to ${newStatus}`)
+        return
+      }
+      
+      // For real MongoDB IDs
+      const { ObjectId } = await import('mongodb')
+      
+      // Update the payment status in the database
+      const result = await db.collection('payments').updateOne(
+        { _id: new ObjectId(paymentId) },
+        { $set: { status: newStatus, updatedAt: new Date() } }
+      )
+      
+      if (result.modifiedCount > 0) {
+        // Update the local state
+        setPayments(prevPayments => 
+          prevPayments.map(payment => 
+            payment.id === paymentId 
+              ? { ...payment, status: newStatus } 
+              : payment
+          )
+        )
+        
+        // Update filtered payments as well
+        setFilteredPayments(prevPayments => 
+          prevPayments.map(payment => 
+            payment.id === paymentId 
+              ? { ...payment, status: newStatus } 
+              : payment
+          )
+        )
+        
+        // Show success message
+        alert(`Payment ${paymentId} status updated to ${newStatus}`)
       } else {
-        throw new Error('Failed to update payment status')
+        throw new Error('No documents were updated')
       }
     } catch (err) {
       console.error('Error updating payment status:', err)
-      setError('Failed to update payment status. Please try again.')
+      alert('Failed to update payment status. Please try again.')
     } finally {
       setIsUpdating(false)
+      setSelectedPayment(null)
+    }
+  }
+
+  // Handle select payment
+  const handleSelectPayment = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedPayments(prev => [...prev, id])
+    } else {
+      setSelectedPayments(prev => prev.filter(paymentId => paymentId !== id))
+    }
+  }
+
+  // Handle export
+  const handleExport = (format: 'csv' | 'json') => {
+    const data = filteredPayments.map(payment => ({
+      'Payment ID': payment.id || '',
+      'Order ID': payment.orderId || '',
+      'Customer': payment.customer || '',
+      'Amount': payment.amount || '',
+      'Method': payment.method || '',
+      'Provider': payment.provider || '',
+      'Status': payment.status || '',
+      'Reference': payment.reference || '',
+      'Date': payment.date || ''
+    }))
+    
+    const filename = `payments-${new Date().toISOString().split('T')[0]}`
+    
+    if (format === 'csv') {
+      exportToCSV(data, `${filename}.csv`)
+    } else {
+      exportToJSON(data, `${filename}.json`)
     }
   }
 
@@ -231,17 +367,30 @@ export default function PaymentsPage() {
         <h1 className="text-2xl font-bold">Payments</h1>
         <div className="flex space-x-2">
           <button 
-            onClick={() => exportToCSV(payments, `soucey-payments-${getFormattedDate()}.csv`)}
+            onClick={() => handleExport('csv')}
             className="bg-pink-600 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center"
-            disabled={loading || payments.length === 0}
+            disabled={isLoading || payments.length === 0}
           >
             <Download className="h-4 w-4 mr-2" />
             Export CSV
           </button>
           <button 
-            onClick={() => exportToJSON(payments, `soucey-payments-${getFormattedDate()}.json`)}
+            onClick={() => {
+              const dataToExport = payments.map(payment => ({
+                ID: payment.id || '',
+                'Order ID': payment.orderId || '',
+                'Customer': payment.customer || 'Unknown',
+                'Amount': payment.amount || '0',
+                'Method': payment.method || 'unknown',
+                'Provider': payment.provider || 'Unknown',
+                'Status': payment.status || 'pending',
+                'Reference': payment.reference || '',
+                'Date': payment.date || new Date().toISOString()
+              }));
+              exportToJSON(dataToExport, `soucey-payments-${getFormattedDate()}.json`);
+            }}
             className="bg-gray-600 text-white px-4 py-2 rounded-md text-sm font-medium flex items-center"
-            disabled={loading || payments.length === 0}
+            disabled={isLoading || payments.length === 0}
           >
             <FileText className="h-4 w-4 mr-2" />
             Export JSON
@@ -258,7 +407,7 @@ export default function PaymentsPage() {
       )}
 
       {/* Loading state */}
-      {loading ? (
+      {isLoading ? (
         <div className="flex justify-center items-center h-64">
           <Loader2 className="h-8 w-8 text-pink-600 animate-spin" />
           <span className="ml-2 text-gray-600">Loading payments...</span>
@@ -424,7 +573,7 @@ export default function PaymentsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {sortedPayments.map((payment) => (
+              {filteredPayments.map((payment: UIPayment) => (
                 <tr key={payment.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {payment.id}

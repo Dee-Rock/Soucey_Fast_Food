@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import FeaturedFoods from '@/components/featured-foods';
 import HowItWorks from '@/components/how-it-works';
+import Testimonials from '@/components/testimonials';
 
 export default function Home() {
   return (
@@ -31,14 +32,20 @@ export default function Home() {
             </div>
           </div>
           <div className="md:w-1/2 flex justify-center">
-            <div className="relative w-full max-w-md h-[350px] rounded-xl overflow-hidden shadow-2xl">
+            <div className="relative w-full max-w-md h-[350px] rounded-3xl overflow-hidden shadow-2xl border-4 border-white transform -rotate-2 hover:rotate-0 transition-all duration-500 hover:shadow-pink-200 hover:scale-105">
+              <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 to-pink-200/20 z-10 rounded-3xl"></div>
               <Image 
-                src="/hero-food.jpg" 
-                alt="Delicious food" 
+                src="/hero.jpeg" 
+                alt="Delicious food from Soucey" 
                 fill
-                className="object-cover"
+                className="object-cover transition-transform duration-700 hover:scale-110"
                 priority
+                sizes="(max-width: 768px) 100vw, 50vw"
               />
+              <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/70 to-transparent text-white z-20">
+                <p className="text-sm font-medium">Taste the difference</p>
+                <p className="text-xs opacity-90">Delivered fresh to your campus</p>
+              </div>
             </div>
           </div>
         </div>
@@ -51,36 +58,7 @@ export default function Home() {
       <HowItWorks />
 
       {/* Testimonials Section */}
-      <section className="bg-pink-50 section-padding">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12">What Our Customers Say</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="bg-white p-6 rounded-lg shadow-md">
-                <div className="flex items-center mb-4">
-                  <div className="w-12 h-12 bg-pink-200 rounded-full flex items-center justify-center mr-4">
-                    <span className="text-pink-700 font-bold">S{i}</span>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold">Student {i}</h4>
-                    <p className="text-sm text-gray-500">Campus Resident</p>
-                  </div>
-                </div>
-                <p className="text-gray-700">
-                  "The food delivery service is amazing! I can order delicious meals right to my dorm. The app is easy to use and the delivery is always on time."
-                </p>
-                <div className="mt-4 flex">
-                  {[...Array(5)].map((_, j) => (
-                    <svg key={j} className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-                    </svg>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      <Testimonials />
 
       {/* CTA Section */}
       <section className="section-padding bg-pink-600 text-white">

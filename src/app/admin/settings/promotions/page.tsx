@@ -4,8 +4,22 @@ import { useState } from 'react'
 import { ArrowLeft, Plus, Trash2, Calendar, Tag, Edit, Save } from 'lucide-react'
 import Link from 'next/link'
 
+interface Promotion {
+  id: string
+  code: string
+  discount: number
+  discountType: 'percentage' | 'fixed'
+  description: string
+  startDate: string
+  endDate: string
+  minOrderAmount: number
+  maxDiscount: number
+  usageLimit: number
+  isActive: boolean
+}
+
 // Mock data for promotions
-const initialPromotions = [
+const initialPromotions: Promotion[] = [
   {
     id: '1',
     code: 'WELCOME20',
@@ -47,19 +61,7 @@ const initialPromotions = [
   }
 ]
 
-interface Promotion {
-  id: string
-  code: string
-  discount: number
-  discountType: 'percentage' | 'fixed'
-  description: string
-  startDate: string
-  endDate: string
-  minOrderAmount: number
-  maxDiscount: number
-  usageLimit: number
-  isActive: boolean
-}
+
 
 export default function PromotionsPage() {
   const [promotions, setPromotions] = useState<Promotion[]>(initialPromotions)

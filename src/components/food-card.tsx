@@ -9,33 +9,37 @@ import { formatPrice } from '@/lib/utils';
 import AddToCartButton from '@/components/add-to-cart-button';
 
 interface FoodCardProps {
-  food: {
-    id: string | number;
-    name: string;
-    description?: string;
-    price: number;
-    image?: string;
-    category?: string;
-    restaurant?: string;
-    rating?: number;
-    preparationTime?: string | number;
-  };
+  id: string | number;
+  name: string;
+  description?: string;
+  price: number;
+  image?: string;
+  category?: string;
+  restaurant?: string;
+  rating?: number;
+  preparationTime?: string | number;
+  popular?: boolean;
 }
 
-const FoodCard: React.FC<FoodCardProps> = ({ food }) => {
+const FoodCard: React.FC<FoodCardProps> = (props) => {
 
   return (
     <div className="food-card bg-white rounded-lg overflow-hidden shadow-md border border-gray-100">
       <div className="relative h-48 w-full">
-        {food.category && (
+        {props.category && (
           <div className="absolute top-0 right-0 bg-pink-500 text-white px-3 py-1 rounded-bl-lg z-10">
-            {food.category}
+            {props.category}
+          </div>
+        )}
+        {props.popular && (
+          <div className="absolute top-0 left-0 bg-pink-600 text-white text-xs font-bold px-2 py-1 rounded-br-md">
+            Popular
           </div>
         )}
         <div className="w-full h-full relative">
           <Image
-            src={food.image || '/placeholder-food.jpg'}
-            alt={food.name}
+            src={props.image || '/placeholder-food.jpg'}
+            alt={props.name}
             fill
             className="object-cover"
           />
@@ -43,47 +47,52 @@ const FoodCard: React.FC<FoodCardProps> = ({ food }) => {
       </div>
       <div className="p-4">
         <div className="flex justify-between items-start mb-2">
-          <h3 className="text-xl font-semibold">{food.name}</h3>
-          {food.rating && (
+          <h3 className="text-xl font-semibold">{props.name}</h3>
+          {props.rating && (
             <div className="flex items-center">
               <Star className="w-4 h-4 text-yellow-400 mr-1" />
-              <span className="text-sm font-medium">{food.rating}</span>
+              <span className="text-sm font-medium">{props.rating}</span>
             </div>
           )}
         </div>
-        {food.restaurant && (
-          <p className="text-gray-500 text-sm mb-2">{food.restaurant}</p>
-        )}
-        {food.description && (
-          <p className="text-gray-600 mb-4 text-sm line-clamp-2">{food.description}</p>
+        
+        {props.description && (
+          <p className="text-gray-600 mb-4 text-sm line-clamp-2">{props.description}</p>
         )}
         
-        {food.preparationTime && (
-          <div className="flex items-center mb-4">
-            <Clock className="w-4 h-4 text-gray-400 mr-1" />
-            <span className="text-sm text-gray-500">{food.preparationTime} mins</span>
-          </div>
-        )}
+        <div className="flex justify-between items-center mb-3">
+          <span className="text-pink-600 font-bold">{formatPrice(props.price)}</span>
+          {props.preparationTime && (
+            <div className="flex items-center text-sm text-gray-500">
+              <Clock className="w-4 h-4 mr-1" />
+              <span>{props.preparationTime} mins</span>
+            </div>
+          )}
+        </div>
         
         <div className="flex justify-between items-center">
-          <span className="text-pink-600 font-bold">{formatPrice(food.price)}</span>
+          {props.restaurant && (
+            <span className="text-xs text-gray-500">{props.restaurant}</span>
+          )}
+          
           <div className="flex space-x-2">
+            <Button asChild variant="outline" size="sm" className="text-xs h-8 px-3">
+              <Link href={`/menu/${props.id}`}>
+                Details
+              </Link>
+            </Button>
+            
             <AddToCartButton 
               item={{
-                id: food.id,
-                name: food.name,
-                price: food.price,
-                restaurant: food.restaurant || 'Unknown',
-                image: food.image || '/placeholder-food.jpg'
-              }}
+                id: props.id.toString(),
+                name: props.name,
+                price: props.price,
+                restaurant: props.restaurant || 'Unknown',
+                image: props.image || '/placeholder-food.jpg'
+              }} 
               variant="outline"
               size="sm"
             />
-            <Button asChild size="sm" className="bg-pink-600 hover:bg-pink-700">
-              <Link href={`/menu/${food.id.toString()}`}>
-                View
-              </Link>
-            </Button>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { 
   Settings as SettingsIcon, 
   CreditCard, 
@@ -9,16 +10,171 @@ import {
   Globe, 
   Truck, 
   MessageSquare,
-  Save
+  Save,
+  Loader2
 } from 'lucide-react'
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState('general')
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState('general');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = () => {
+    setIsSaving(true);
+    // Simulate save operation
+    setTimeout(() => {
+      setIsSaving(false);
+    }, 1000);
+  };
+
+  const tabs = [
+    { id: 'general', label: 'General', icon: <SettingsIcon className="h-4 w-4 mr-2" /> },
+    { id: 'billing', label: 'Billing', icon: <CreditCard className="h-4 w-4 mr-2" /> },
+    { id: 'notifications', label: 'Notifications', icon: <Bell className="h-4 w-4 mr-2" /> },
+    { id: 'security', label: 'Security', icon: <Lock className="h-4 w-4 mr-2" /> },
+    { id: 'shipping', label: 'Shipping', icon: <Truck className="h-4 w-4 mr-2" /> },
+    { id: 'messages', label: 'Messages', icon: <MessageSquare className="h-4 w-4 mr-2" /> },
+  ];
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'general':
+        return (
+          <div className="bg-white shadow rounded-lg p-6">
+            <h2 className="text-lg font-medium mb-4">General Settings</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Business Name</label>
+                <input
+                  type="text"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 sm:text-sm"
+                  placeholder="Your business name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Business Email</label>
+                <input
+                  type="email"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500 sm:text-sm"
+                  placeholder="contact@example.com"
+                />
+              </div>
+            </div>
+          </div>
+        );
+      case 'billing':
+        return (
+          <div className="bg-white shadow rounded-lg p-6">
+            <h2 className="text-lg font-medium mb-4">Billing Information</h2>
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <CreditCard className="h-5 w-5 text-gray-400 mr-2" />
+                <span>Payment Methods</span>
+              </div>
+              <p className="text-sm text-gray-500">Manage your payment methods and billing information</p>
+            </div>
+          </div>
+        );
+      case 'notifications':
+        return (
+          <div className="bg-white shadow rounded-lg p-6">
+            <h2 className="text-lg font-medium mb-4">Notification Preferences</h2>
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <Bell className="h-5 w-5 text-gray-400 mr-2" />
+                <span>Email Notifications</span>
+              </div>
+              <p className="text-sm text-gray-500">Configure your notification preferences</p>
+            </div>
+          </div>
+        );
+      case 'security':
+        return (
+          <div className="bg-white shadow rounded-lg p-6">
+            <h2 className="text-lg font-medium mb-4">Security Settings</h2>
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <Lock className="h-5 w-5 text-gray-400 mr-2" />
+                <span>Change Password</span>
+              </div>
+              <p className="text-sm text-gray-500">Update your password and security settings</p>
+            </div>
+          </div>
+        );
+      case 'shipping':
+        return (
+          <div className="bg-white shadow rounded-lg p-6">
+            <h2 className="text-lg font-medium mb-4">Shipping Settings</h2>
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <Truck className="h-5 w-5 text-gray-400 mr-2" />
+                <span>Delivery Zones</span>
+              </div>
+              <p className="text-sm text-gray-500">Configure your delivery areas and fees</p>
+            </div>
+          </div>
+        );
+      case 'messages':
+        return (
+          <div className="bg-white shadow rounded-lg p-6">
+            <h2 className="text-lg font-medium mb-4">Message Templates</h2>
+            <div className="space-y-4">
+              <div className="flex items-center">
+                <MessageSquare className="h-5 w-5 text-gray-400 mr-2" />
+                <span>Customer Messages</span>
+              </div>
+              <p className="text-sm text-gray-500">Customize your automated messages</p>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-8">
         <h1 className="text-2xl font-bold">Settings</h1>
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 disabled:opacity-50"
+        >
+          {isSaving ? (
+            <>
+              <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="-ml-1 mr-2 h-4 w-4" />
+              Save Changes
+            </>
+          )}
+        </button>
+      </div>
+
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`${activeTab === tab.id
+                ? 'border-pink-500 text-pink-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap flex py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      <div className="mt-6">
+        {renderTabContent()}
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">

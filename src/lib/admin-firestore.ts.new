@@ -1,0 +1,432 @@
+import { 
+  collection, 
+  getDocs, 
+  query, 
+  where, 
+  orderBy, 
+  limit,
+  startAfter,
+  Timestamp,
+  DocumentData,
+  getDoc,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  serverTimestamp
+} from 'firebase/firestore';
+import { db } from './firebase';
+import { MenuItem, Restaurant, User, Order } from './firestore';
+
+// Admin Dashboard Stats
+export interface DashboardStats {
+  totalOrders: number;
+  totalRevenue: number;
+  activeUsers: number;
+  conversionRate: number;
+  ordersTrend: string;
+  revenueTrend: string;
+  usersTrend: string;
+  conversionTrend: string;
+}
+
+// Analytics Data
+export interface AnalyticsData {
+  revenueData: { 
+    labels: string[];
+    data: number[];
+  };
+  ordersData: { 
+    labels: string[];
+    data: number[];
+  };
+  usersData: { 
+    labels: string[];
+    data: number[];
+  };
+  categoryData: {
+    labels: string[];
+    data: number[];
+  };
+  topSellingItems: { 
+    name: string; 
+    quantity: number; 
+    revenue: number;
+  }[];
+  topRestaurants: { 
+    name: string; 
+    orders: number; 
+    revenue: number;
+  }[];
+}
+
+// Fetch dashboard statistics
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+  try {
+    // Get total orders
+    const ordersCollection = collection(db, 'orders');
+    const ordersSnapshot = await getDocs(ordersCollection);
+    const totalOrders = ordersSnapshot.size;
+    
+    // Calculate total revenue
+    let totalRevenue = 0;
+    ordersSnapshot.forEach(doc => {
+      const orderData = doc.data();
+      totalRevenue += parseFloat(orderData.amount || '0');
+    });
+    
+    // Get active users
+    const usersCollection = collection(db, 'users');
+    const activeUsersQuery = query(
+      usersCollection,
+      where('status', '==', 'active')
+    );
+    const activeUsersSnapshot = await getDocs(activeUsersQuery);
+    const activeUsers = activeUsersSnapshot.size;
+    
+    // Calculate conversion rate (orders / active users)
+    const conversionRate = activeUsers > 0 ? (totalOrders / activeUsers) * 100 : 0;
+    
+    // For trends, we would normally compare with previous period
+    // For now, we'll use placeholder values
+    return {
+      totalOrders,
+      totalRevenue,
+      activeUsers,
+      conversionRate,
+      ordersTrend: '+12%',
+      revenueTrend: '+18%',
+      usersTrend: '+7%',
+      conversionTrend: '-2%'
+    };
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    throw error;
+  }
+}
+
+// Fetch recent orders
+export async function fetchRecentOrders(limitCount = 5): Promise<Order[]> {
+  try {
+    const ordersCollection = collection(db, 'orders');
+    const recentOrdersQuery = query(
+      ordersCollection,
+      orderBy('date', 'desc'),
+      limit(limitCount)
+    );
+    
+    const snapshot = await getDocs(recentOrdersQuery);
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as Order));
+  } catch (error) {
+    console.error('Error fetching recent orders:', error);
+    throw error;
+  }
+}
+
+// Fetch menu items with pagination
+export async function fetchMenuItems(
+  lastVisible: DocumentData | null = null,
+  itemsPerPage = 10,
+  filterCategory = '',
+  searchQuery = '',
+  sortBy = 'name',
+  sortDirection: 'asc' | 'desc' = 'asc'
+): Promise<{ items: MenuItem[], lastVisible: DocumentData | null }> {
+  try {
+    const menuItemsCollection = collection(db, 'menuItems');
+    let menuItemsQuery;
+    
+    // Build base query
+    if (filterCategory && searchQuery) {
+      // Both category filter and search
+      menuItemsQuery = query(
+        menuItemsCollection,
+        where('category', '==', filterCategory),
+        where('name', '>=', searchQuery),
+        where('name', '<=', searchQuery + '\uf8ff'),
+        orderBy('name', sortDirection)
+      );
+    } else if (filterCategory) {
+      // Only category filter
+      menuItemsQuery = query(
+        menuItemsCollection,
+        where('category', '==', filterCategory),
+        orderBy(sortBy, sortDirection)
+      );
+    } else if (searchQuery) {
+      // Only search query
+      menuItemsQuery = query(
+        menuItemsCollection,
+        where('name', '>=', searchQuery),
+        where('name', '<=', searchQuery + '\uf8ff'),
+        orderBy('name', sortDirection)
+      );
+    } else {
+      // No filters
+      menuItemsQuery = query(
+        menuItemsCollection,
+        orderBy(sortBy, sortDirection)
+      );
+    }
+    
+    // Add pagination if we have a last visible document
+    if (lastVisible) {
+      menuItemsQuery = query(
+        menuItemsQuery,
+        startAfter(lastVisible),
+        limit(itemsPerPage)
+      );
+    } else {
+      menuItemsQuery = query(
+        menuItemsQuery,
+        limit(itemsPerPage)
+      );
+    }
+    
+    const snapshot = await getDocs(menuItemsQuery);
+    const items = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as MenuItem));
+    
+    // Get the last visible document for pagination
+    const newLastVisible = snapshot.docs.length > 0 
+      ? snapshot.docs[snapshot.docs.length - 1] 
+      : null;
+    
+    return { items, lastVisible: newLastVisible };
+  } catch (error) {
+    console.error('Error fetching menu items:', error);
+    throw error;
+  }
+}
+
+// Fetch users with pagination
+export async function fetchUsers(
+  lastVisible: DocumentData | null = null,
+  itemsPerPage = 10,
+  filterRole = '',
+  filterStatus = '',
+  searchQuery = '',
+  sortBy = 'name',
+  sortDirection: 'asc' | 'desc' = 'asc'
+): Promise<{ users: User[], lastVisible: DocumentData | null }> {
+  try {
+    const usersCollection = collection(db, 'users');
+    let usersQuery;
+    
+    // Build base query
+    if (filterRole && filterStatus) {
+      // Both role and status filters
+      usersQuery = query(
+        usersCollection,
+        where('role', '==', filterRole),
+        where('status', '==', filterStatus)
+      );
+    } else if (filterRole) {
+      // Only role filter
+      usersQuery = query(
+        usersCollection,
+        where('role', '==', filterRole)
+      );
+    } else if (filterStatus) {
+      // Only status filter
+      usersQuery = query(
+        usersCollection,
+        where('status', '==', filterStatus)
+      );
+    } else {
+      // No filters
+      usersQuery = query(usersCollection);
+    }
+    
+    // Add search if provided
+    if (searchQuery) {
+      // For a real implementation, we would use a more sophisticated search
+      // This is a simplified approach
+      usersQuery = query(
+        usersQuery,
+        orderBy('name'),
+        where('name', '>=', searchQuery),
+        where('name', '<=', searchQuery + '\uf8ff')
+      );
+    } else {
+      // No search, just sort
+      usersQuery = query(
+        usersQuery,
+        orderBy(sortBy, sortDirection)
+      );
+    }
+    
+    // Add pagination
+    if (lastVisible) {
+      usersQuery = query(
+        usersQuery,
+        startAfter(lastVisible),
+        limit(itemsPerPage)
+      );
+    } else {
+      usersQuery = query(
+        usersQuery,
+        limit(itemsPerPage)
+      );
+    }
+    
+    const snapshot = await getDocs(usersQuery);
+    const users = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    } as User));
+    
+    // Get the last visible document for pagination
+    const newLastVisible = snapshot.docs.length > 0 
+      ? snapshot.docs[snapshot.docs.length - 1] 
+      : null;
+    
+    return { users, lastVisible: newLastVisible };
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    throw error;
+  }
+}
+
+// Fetch analytics data
+export async function fetchAnalyticsData(timeRange = 'last_7_days'): Promise<AnalyticsData> {
+  try {
+    // For a real implementation, we would query Firestore with date ranges
+    // For now, we'll return mock data based on the time range
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const currentMonth = new Date().getMonth();
+    
+    // Generate labels and data based on time range
+    let labels: string[] = [];
+    let revenueValues: number[] = [];
+    let ordersValues: number[] = [];
+    let usersValues: number[] = [];
+    
+    // Number of data points based on time range
+    let dataPoints = 7;
+    if (timeRange === 'last_30_days') dataPoints = 30;
+    else if (timeRange === 'last_90_days') dataPoints = 12; // Use weeks for 90 days
+    else if (timeRange === 'all_time') dataPoints = 12; // Use months for all time
+    
+    // Generate data points
+    for (let i = 0; i < dataPoints; i++) {
+      // Generate appropriate labels based on time range
+      if (timeRange === 'last_7_days') {
+        // Days of the week
+        const date = new Date();
+        date.setDate(date.getDate() - (dataPoints - 1 - i));
+        labels.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
+      } else if (timeRange === 'last_30_days') {
+        // Day numbers
+        const date = new Date();
+        date.setDate(date.getDate() - (dataPoints - 1 - i));
+        labels.push(`${date.getDate()}/${date.getMonth() + 1}`);
+      } else {
+        // Months or weeks
+        if (timeRange === 'last_90_days') {
+          labels.push(`Week ${i + 1}`);
+        } else {
+          // All time - use months
+          const monthIndex = (currentMonth - 11 + i + 12) % 12;
+          labels.push(months[monthIndex]);
+        }
+      }
+      
+      // Generate random data
+      revenueValues.push(Math.floor(Math.random() * 10000) + 5000);
+      ordersValues.push(Math.floor(Math.random() * 500) + 100);
+      usersValues.push(Math.floor(Math.random() * 200) + 50);
+    }
+    
+    // Category data for pie chart
+    const categories = ['Jollof Rice', 'Waakye', 'Banku', 'Fried Rice', 'Fufu', 'Others'];
+    const categoryValues = categories.map(() => Math.floor(Math.random() * 100) + 20);
+    
+    // Generate top selling items
+    const topSellingItems = [
+      {
+        name: 'Jollof Rice with Chicken',
+        quantity: 342,
+        revenue: 12312.00
+      },
+      {
+        name: 'Waakye Special',
+        quantity: 271,
+        revenue: 9485.00
+      },
+      {
+        name: 'Banku with Tilapia',
+        quantity: 184,
+        revenue: 7360.00
+      },
+      {
+        name: 'Fried Rice with Chicken',
+        quantity: 156,
+        revenue: 5460.00
+      },
+      {
+        name: 'Fufu with Light Soup',
+        quantity: 132,
+        revenue: 4620.00
+      }
+    ];
+    
+    // Generate top restaurants
+    const topRestaurants = [
+      {
+        name: 'Koffee Lounge',
+        orders: 523,
+        revenue: 18305.00
+      },
+      {
+        name: 'Tasty Chef Restaurant',
+        orders: 412,
+        revenue: 14420.00
+      },
+      {
+        name: 'Aunty Muni Waakye',
+        orders: 389,
+        revenue: 13615.00
+      },
+      {
+        name: 'Bush Canteen',
+        orders: 276,
+        revenue: 9660.00
+      },
+      {
+        name: 'Asanka Local',
+        orders: 245,
+        revenue: 8575.00
+      }
+    ];
+    
+    return {
+      revenueData: {
+        labels,
+        data: revenueValues
+      },
+      ordersData: {
+        labels,
+        data: ordersValues
+      },
+      usersData: {
+        labels,
+        data: usersValues
+      },
+      categoryData: {
+        labels: categories,
+        data: categoryValues
+      },
+      topSellingItems,
+      topRestaurants
+    };
+  } catch (error) {
+    console.error('Error fetching analytics data:', error);
+    throw error;
+  }
+}

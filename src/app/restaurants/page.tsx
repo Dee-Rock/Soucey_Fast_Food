@@ -6,42 +6,30 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Search, Star, MapPin, Clock, Loader } from 'lucide-react';
-import { Restaurant } from '@/lib/firestore';
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { IRestaurant } from '@/models/Restaurant';
 
 const RestaurantsPage = () => {
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [filteredRestaurants, setFilteredRestaurants] = useState<Restaurant[]>([]);
-  const [featuredRestaurants, setFeaturedRestaurants] = useState<Restaurant[]>([]);
+  const [restaurants, setRestaurants] = useState<IRestaurant[]>([]);
+  const [filteredRestaurants, setFilteredRestaurants] = useState<IRestaurant[]>([]);
+  const [featuredRestaurants, setFeaturedRestaurants] = useState<IRestaurant[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch restaurants from Firestore
+  // Fetch restaurants from MongoDB API
   useEffect(() => {
     const fetchRestaurants = async () => {
       try {
         setIsLoading(true);
-        const restaurantsCollection = collection(db, 'restaurants');
-        const restaurantsQuery = query(
-          restaurantsCollection,
-          where('status', '==', 'active'),
-          orderBy('rating', 'desc')
-        );
+        const response = await fetch('/api/restaurants');
         
-        const querySnapshot = await getDocs(restaurantsQuery);
-        const restaurantsList: Restaurant[] = [];
-        const featuredList: Restaurant[] = [];
+        if (!response.ok) {
+          throw new Error('Failed to fetch restaurants');
+        }
         
-        querySnapshot.forEach((doc) => {
-          const restaurant = { id: doc.id, ...doc.data() } as Restaurant;
-          restaurantsList.push(restaurant);
-          
-          if (restaurant.featured) {
-            featuredList.push(restaurant);
-          }
-        });
+        const data = await response.json();
+        const restaurantsList: IRestaurant[] = data;
+        const featuredList: IRestaurant[] = data.filter((restaurant: IRestaurant) => restaurant.featuredRestaurant);
         
         setRestaurants(restaurantsList);
         setFilteredRestaurants(restaurantsList);
@@ -126,9 +114,11 @@ const RestaurantsPage = () => {
                         fill
                         className="object-cover"
                       />
-                      <div className="absolute top-0 right-0 bg-pink-600 text-white px-3 py-1 rounded-bl-lg">
-                        Featured
-                      </div>
+                      {restaurant.featuredRestaurant && (
+                        <div className="absolute top-0 left-0 bg-pink-600 text-white text-xs font-bold px-2 py-1 rounded-br-md">
+                          Featured
+                        </div>
+                      )}
                     </div>
                     <div className="p-4">
                       <h3 className="font-bold text-lg mb-1">{restaurant.name}</h3>
@@ -136,13 +126,12 @@ const RestaurantsPage = () => {
                         <MapPin className="w-4 h-4 mr-1" />
                         <span>{restaurant.address}</span>
                       </div>
-                      <div className="flex items-center text-sm mb-2">
-                        <Star className="w-4 h-4 text-yellow-500 mr-1" />
-                        <span>{restaurant.rating.toFixed(1)}</span>
-                      </div>
-                      <div className="flex items-center text-sm text-gray-600">
-                        <Clock className="w-4 h-4 mr-1" />
-                        <span>Delivery: {restaurant.deliveryTime} mins</span>
+                      <div className="flex items-center text-sm text-gray-500 mt-1">
+                        <Star className="h-4 w-4 text-yellow-400 mr-1" />
+                        <span>{restaurant.rating?.toFixed(1) || '0.0'}</span>
+                        <span className="mx-2">•</span>
+                        <MapPin className="h-4 w-4 text-gray-400 mr-1" />
+                        <span>{restaurant.address}</span>
                       </div>
                     </div>
                   </Link>
@@ -175,9 +164,12 @@ const RestaurantsPage = () => {
                       <MapPin className="w-4 h-4 mr-1" />
                       <span>{restaurant.address}</span>
                     </div>
-                    <div className="flex items-center text-sm mb-2">
-                      <Star className="w-4 h-4 text-yellow-500 mr-1" />
-                      <span>{restaurant.rating.toFixed(1)}</span>
+                    <div className="flex items-center text-sm text-gray-500 mt-1">
+                      <Star className="h-4 w-4 text-yellow-400 mr-1" />
+                      <span>{restaurant.rating?.toFixed(1) || '0.0'}</span>
+                      <span className="mx-2">•</span>
+                      <MapPin className="h-4 w-4 text-gray-400 mr-1" />
+                      <span>{restaurant.address}</span>
                     </div>
                     <div className="flex items-center text-sm text-gray-600">
                       <Clock className="w-4 h-4 mr-1" />
