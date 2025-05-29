@@ -18,13 +18,77 @@ export async function getById<T>(model: any, id: string): Promise<T | null> {
 }
 
 export async function create<T>(model: any, data: any): Promise<T> {
-  await dbConnect();
-  return model.create(data);
+  console.log('DB Service - Creating document in model:', model.modelName);
+  console.log('DB Service - Input data:', JSON.stringify(data, null, 2));
+  
+  try {
+    await dbConnect();
+    console.log('DB Service - Database connected');
+    
+    // Validate the data against the model schema
+    if (model.schema) {
+      const validationError = model.schema.validateSync(data);
+      if (validationError) {
+        console.error('DB Service - Validation Error:', validationError);
+        throw validationError;
+      }
+    }
+    
+    const result = await model.create(data);
+    console.log('DB Service - Document created successfully:', JSON.stringify(result, null, 2));
+    return result;
+  } catch (error) {
+    console.error('DB Service - Error creating document:', error);
+    if (error instanceof mongoose.Error.ValidationError) {
+      console.error('DB Service - Validation errors:', Object.keys(error.errors).map(key => ({
+        field: key,
+        message: error.errors[key].message
+      })));
+    }
+    throw error;
+  }
 }
 
 export async function update<T>(model: any, id: string, data: any): Promise<T | null> {
-  await dbConnect();
-  return model.findByIdAndUpdate(id, data, { new: true }).lean();
+  console.log('DB Service - Updating document:', { model: model.modelName, id, data });
+  try {
+    await dbConnect();
+    console.log('DB Service - Database connected');
+
+    // Convert string ID to ObjectId if needed
+    let objectId;
+    try {
+      objectId = new mongoose.Types.ObjectId(id);
+    } catch (error) {
+      console.error('DB Service - Invalid ObjectId:', id);
+      throw new Error('Invalid ID format');
+    }
+
+    // Ensure the document exists
+    const existingDoc = await model.findById(objectId);
+    if (!existingDoc) {
+      console.log('DB Service - Document not found:', id);
+      return null;
+    }
+
+    console.log('DB Service - Found existing document:', existingDoc);
+
+    // Update the document
+    const updatedDoc = await model.findByIdAndUpdate(
+      objectId,
+      { $set: data },
+      { 
+        new: true, // Return the updated document
+        runValidators: true // Run schema validators
+      }
+    ).lean();
+
+    console.log('DB Service - Document updated successfully:', updatedDoc);
+    return updatedDoc;
+  } catch (error) {
+    console.error('DB Service - Error updating document:', error);
+    throw error;
+  }
 }
 
 export async function remove(model: any, id: string): Promise<boolean> {
@@ -70,7 +134,46 @@ export const MenuItemService = {
 export const OrderService = {
   getAll: () => getAll(Order),
   getById: (id: string) => getById(Order, id),
-  create: (data: any) => create(Order, data),
+  create: async (data: any) => {
+    console.log('OrderService - Creating new order with data:', JSON.stringify(data, null, 2));
+    try {
+      // Ensure all required fields are present
+      const requiredFields = [
+        'customer',
+        'items',
+        'paymentMethod',
+        'subtotal',
+        'deliveryFee',
+        'total',
+        'address'
+      ];
+      
+      const missingFields = requiredFields.filter(field => !data[field]);
+      if (missingFields.length > 0) {
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+      }
+      
+      // Ensure numeric fields are numbers
+      data.subtotal = Number(data.subtotal);
+      data.deliveryFee = Number(data.deliveryFee);
+      data.total = Number(data.total);
+      
+      // Ensure items have proper numeric values
+      data.items = data.items.map((item: any) => ({
+        ...item,
+        price: Number(item.price),
+        quantity: Number(item.quantity),
+        total: Number(item.price) * Number(item.quantity)
+      }));
+      
+      const result = await create(Order, data);
+      console.log('OrderService - Order created successfully:', JSON.stringify(result, null, 2));
+      return result;
+    } catch (error) {
+      console.error('OrderService - Error creating order:', error);
+      throw error;
+    }
+  },
   update: (id: string, data: any) => update(Order, id, data),
   remove: (id: string) => remove(Order, id),
   query: (queryObj: any) => query(Order, queryObj)

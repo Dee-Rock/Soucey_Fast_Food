@@ -23,6 +23,9 @@ import { exportToCSV, exportToJSON, getFormattedDate } from '@/utils/export-data
 import { getCollection } from '@/lib/mongodb';
 import { IOrder as DbIOrder } from '@/models/Order';
 import { ObjectId, WithId, Document } from 'mongodb';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { toast } from '@/components/ui/use-toast';
 
 // Interface for customer information
 interface ICustomer {
@@ -52,46 +55,133 @@ interface IOrderItem {
 // Type for database order (matches MongoDB document)
 interface DbOrderDocument extends Document {
   _id: ObjectId;
-  orderNumber?: string;
-  customer: any;
-  items?: Array<{
-    _id?: any;
-    name?: string;
-    quantity?: number | string;
-    price?: number | string;
-    total?: number;
-    [key: string]: any;
+  orderNumber: string;
+  customer: {
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+  };
+  items: Array<{
+    name: string;
+    quantity: number;
+    price: number;
+    total: number;
+    notes?: string;
+    restaurant?: string;
+    image?: string;
   }>;
-  status?: string;
-  paymentStatus?: string;
-  paymentMethod?: string;
-  amount?: number | string;
-  email?: string;
-  phone?: string;
-  address?: string;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  paymentMethod: PaymentMethod;
+  subtotal: number;
+  deliveryFee: number;
+  total: number;
+  address: string;
   notes?: string;
-  createdAt?: Date | string;
-  updatedAt?: Date | string;
-  [key: string]: any; // Allow for additional properties
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }
 
 // Main order interface for the application
 interface IOrder {
   _id: string;
   orderNumber: string;
-  customer: string | ICustomer;
-  items: IOrderItem[];
+  customer: {
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+  };
+  items: Array<{
+    name: string;
+    quantity: number;
+    price: number;
+    total: number;
+    notes?: string;
+    restaurant?: string;
+    image?: string;
+  }>;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
   paymentMethod: PaymentMethod;
+  subtotal: number;
+  deliveryFee: number;
   total: number;
-  email: string;
-  phone: string;
   address: string;
-  notes: string;
+  notes?: string;
   createdAt: Date;
   updatedAt: Date;
 }
+
+// Mock data
+const mockOrders: IOrder[] = [
+  {
+    _id: '1',
+    orderNumber: 'ORD-001',
+    customer: {
+      name: 'John Doe',
+      email: 'john@example.com',
+      phone: '+233 20 123 4567',
+      address: '123 Main St, Accra'
+    },
+    items: [
+      {
+        _id: '1',
+        name: 'Jollof Rice with Chicken',
+        quantity: 2,
+        price: 25.99,
+        total: 51.98
+      },
+      {
+        _id: '2',
+        name: 'Waakye Special',
+        quantity: 1,
+        price: 20.50,
+        total: 20.50
+      }
+    ],
+    status: 'pending',
+    paymentStatus: 'pending',
+    paymentMethod: 'mobile_money',
+    total: 72.48,
+    email: 'john@example.com',
+    phone: '+233 20 123 4567',
+    address: '123 Main St, Accra',
+    notes: '',
+    createdAt: new Date('2024-03-20T10:30:00Z'),
+    updatedAt: new Date('2024-03-20T10:30:00Z')
+  },
+  {
+    _id: '2',
+    orderNumber: 'ORD-002',
+    customer: {
+      name: 'Sarah Smith',
+      email: 'sarah@example.com',
+      phone: '+233 24 987 6543',
+      address: '456 Circle Ave, Kumasi'
+    },
+    items: [
+      {
+        _id: '3',
+        name: 'Banku with Tilapia',
+        quantity: 1,
+        price: 35.00,
+        total: 35.00
+      }
+    ],
+    status: 'delivered',
+    paymentStatus: 'paid',
+    paymentMethod: 'card',
+    total: 35.00,
+    email: 'sarah@example.com',
+    phone: '+233 24 987 6543',
+    address: '456 Circle Ave, Kumasi',
+    notes: '',
+    createdAt: new Date('2024-03-20T09:15:00Z'),
+    updatedAt: new Date('2024-03-20T09:15:00Z')
+  }
+];
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<IOrder[]>([]);
@@ -100,199 +190,161 @@ export default function OrdersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [paymentFilter, setPaymentFilter] = useState<string>('all');
-  const [sortField, setSortField] = useState('createdAt');
+  const [sortField, setSortField] = useState<keyof IOrder>('createdAt');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const router = useRouter();
   
-  // Fetch orders from database
-  useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        setIsLoading(true);
-        const ordersCollection = await getCollection<DbOrderDocument>('orders');
-        const sortOption: Record<string, 1 | -1> = { [sortField]: sortDirection === 'asc' ? 1 : -1 };
-        const ordersData = await ordersCollection
-          .find({})
-          .sort(sortOption)
-          .toArray();
-        
-        // Convert MongoDB documents to IOrder format
-        const formattedOrders = ordersData.map((orderDoc: WithId<DbOrderDocument>) => {
-          // Safely cast the document to a more specific type
-          const order = orderDoc as unknown as {
-            _id: ObjectId;
-            orderNumber?: string;
-            customer: any;
-            items?: Array<{
-              _id?: any;
-              name?: string;
-              quantity?: number | string;
-              price?: number | string;
-              total?: number;
-            }>;
-            status?: string;
-            paymentStatus?: string;
-            paymentMethod?: string;
-            amount?: number | string;
-            email?: string;
-            phone?: string;
-            address?: string;
-            notes?: string;
-            createdAt?: Date | string;
-            updatedAt?: Date | string;
-          };
-          
-          // Ensure we have a proper customer object
-          let customer: string | ICustomer;
-          if (order.customer && typeof order.customer === 'object') {
-            const cust = order.customer as Record<string, unknown>;
-            customer = {
-              name: (cust.name as string) || 'Unknown Customer',
-              email: (cust.email as string) || '',
-              phone: (cust.phone as string) || '',
-              address: (cust.address as string) || ''
-            };
-          } else {
-            customer = String(order.customer || 'Unknown Customer');
-          }
-          
-          // Map items safely
-          const items: IOrderItem[] = [];
-          if (Array.isArray(order.items)) {
-            order.items.forEach(item => {
-              items.push({
-                _id: (item._id?.toString()) || new ObjectId().toString(),
-                name: item.name || 'Unknown Item',
-                quantity: Number(item.quantity) || 1,
-                price: Number(item.price) || 0,
-                total: (Number(item.quantity) || 1) * (Number(item.price) || 0)
-              });
-            });
-          }
-          
-          // Safely parse dates
-          const createdAt = order.createdAt 
-            ? (typeof order.createdAt === 'string' ? new Date(order.createdAt) : order.createdAt)
-            : new Date();
-            
-          const updatedAt = order.updatedAt 
-            ? (typeof order.updatedAt === 'string' ? new Date(order.updatedAt) : order.updatedAt)
-            : new Date();
-          
-          // Create the order object with proper typing
-          const orderData: IOrder = {
-            _id: order._id.toString(),
-            orderNumber: order.orderNumber || `ORD-${order._id.toString().slice(-6).toUpperCase()}`,
-            customer,
-            items,
-            status: (order.status as OrderStatus) || 'pending',
-            paymentStatus: (order.paymentStatus as PaymentStatus) || 'pending',
-            paymentMethod: (order.paymentMethod as PaymentMethod) || 'unknown',
-            total: typeof order.amount === 'string' ? parseFloat(order.amount) : Number(order.amount) || 0,
-            email: order.email?.toString() || '',
-            phone: order.phone?.toString() || '',
-            address: order.address?.toString() || '',
-            notes: order.notes?.toString() || '',
-            createdAt,
-            updatedAt
-          };
-          
-          return orderData;
-        });
-        
-        setOrders(formattedOrders);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching orders:', err);
-        setError('Failed to load orders. Please try again later.');
-        
-        // Fallback to mock data in development
-        if (process.env.NODE_ENV === 'development') {
-          try {
-            const { orders: mockOrders } = await import('@/data/mock-data');
-            // Ensure mock data matches IOrder interface
-            const typedMockOrders = (mockOrders as any[]).map(order => ({
-              ...order,
-              _id: order._id || new ObjectId().toString(),
-              orderNumber: order.orderNumber || `MOCK-${Math.random().toString(36).substr(2, 8).toUpperCase()}`,
-              customer: order.customer || 'Mock Customer',
-              items: order.items?.map((item: any) => ({
-                _id: item._id || new ObjectId().toString(),
-                name: item.name || 'Mock Item',
-                quantity: item.quantity || 1,
-                price: item.price || 0,
-                total: (item.quantity || 1) * (item.price || 0)
-              })) || [],
-              status: (order.status as OrderStatus) || 'pending',
-              paymentStatus: (order.paymentStatus as PaymentStatus) || 'pending',
-              paymentMethod: (order.paymentMethod as PaymentMethod) || 'unknown',
-              total: order.total || 0,
-              email: order.email || '',
-              phone: order.phone || '',
-              address: order.address || '',
-              createdAt: order.createdAt ? new Date(order.createdAt) : new Date(),
-              updatedAt: order.updatedAt ? new Date(order.updatedAt) : new Date()
-            }));
-            
-            setOrders(typedMockOrders as IOrder[]);
-            setError(null);
-          } catch (mockErr) {
-            console.error('Error loading mock data:', mockErr);
-          }
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchOrders();
-  }, [sortField, sortDirection]);
-
-  // Filter orders based on search term and filters
-  const filteredOrders = orders.filter((order) => {
-    // Apply search filter
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      const orderNumber = order.orderNumber.toLowerCase();
-      const customerName = typeof order.customer === 'string' 
-        ? order.customer.toLowerCase() 
-        : order.customer.name.toLowerCase();
+  // Define fetchOrders function that can be used by both useEffect and handleUpdateOrderStatus
+  const fetchOrders = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/orders');
+      console.log('Response status:', response.status);
       
-      if (!orderNumber.includes(searchLower) && !customerName.includes(searchLower)) {
-        return false;
+      if (!response.ok) {
+        throw new Error('Failed to fetch orders');
       }
+      
+      const data = await response.json();
+      console.log('Received orders data:', data);
+      
+      if (!data || !data.orders) {
+        console.error('Invalid data format received:', data);
+        throw new Error('Invalid data format received from server');
+      }
+      
+      // Transform the data to match our expected format
+      const formattedOrders: IOrder[] = data.orders.map((order: any) => ({
+        _id: order._id || '',
+        orderNumber: order.orderNumber || `ORD-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
+        customer: {
+          name: order.customer || order.customerName || 'Unknown',
+          email: order.email || '',
+          phone: order.phone || '',
+          address: order.address || ''
+        },
+        items: Array.isArray(order.items) ? order.items.map((item: any) => ({
+          name: item.name || 'Unknown Item',
+          quantity: Number(item.quantity) || 0,
+          price: Number(item.price) || 0,
+          total: Number(item.total) || Number(item.price) * Number(item.quantity) || 0,
+          notes: item.notes || '',
+          restaurant: item.restaurant || '',
+          image: item.image || ''
+        })) : [{
+          name: 'Unknown Item',
+          quantity: 1,
+          price: Number(order.amount) || 0,
+          total: Number(order.amount) || 0
+        }],
+        status: order.status || 'pending',
+        paymentStatus: order.paymentStatus || 'pending',
+        paymentMethod: order.paymentMethod || 'cash',
+        subtotal: Number(order.subtotal) || Number(order.amount) || 0,
+        deliveryFee: Number(order.deliveryFee) || 0,
+        total: Number(order.total) || Number(order.amount) || 0,
+        address: order.address || '',
+        notes: order.notes || '',
+        createdAt: order.createdAt ? new Date(order.createdAt) : new Date(),
+        updatedAt: order.updatedAt ? new Date(order.updatedAt) : new Date()
+      }));
+      
+      console.log('Formatted orders:', formattedOrders);
+      setOrders(formattedOrders);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+      setError('Failed to load orders');
+    } finally {
+      setIsLoading(false);
     }
+  };
+  
+  // Use fetchOrders in useEffect
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  // Filter orders
+  const filteredOrders = orders.filter(order => {
+    const matchesSearch = searchTerm === '' || 
+      order.orderNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      order.customer.email.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Apply status filter
-    if (statusFilter !== 'all' && order.status !== statusFilter) {
-      return false;
+    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+    const matchesPayment = paymentFilter === 'all' || order.paymentStatus === paymentFilter;
+    
+    return matchesSearch && matchesStatus && matchesPayment;
+  });
+
+  // Sort orders
+  const sortedOrders = [...filteredOrders].sort((a, b) => {
+    if (sortField === 'createdAt') {
+      return sortDirection === 'asc' 
+        ? new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
     }
-    
-    // Apply payment filter
-    if (paymentFilter !== 'all' && order.paymentStatus !== paymentFilter) {
-      return false;
-    }
-    
-    return true;
+    return 0;
   });
 
   // Handle order status update
   const handleUpdateOrderStatus = async (id: string, newStatus: OrderStatus) => {
     try {
-      const ordersCollection = await getCollection<DbOrderDocument>('orders');
-      const filter = { _id: new ObjectId(id) };
-      const update = { $set: { status: newStatus, updatedAt: new Date() } };
+      console.log('Updating order status:', { id, newStatus });
       
-      await ordersCollection.updateOne(filter, update);
+      // First verify the order exists
+      const order = orders.find(o => o._id === id);
+      if (!order) {
+        throw new Error('Order not found in local state');
+      }
+
+      const response = await fetch(`/api/orders/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache'
+        },
+        body: JSON.stringify({ status: newStatus }),
+        cache: 'no-store'
+      });
+
+      console.log('Update response status:', response.status);
+      const responseData = await response.json();
+      console.log('Update response data:', responseData);
+
+      if (!response.ok) {
+        throw new Error(responseData?.error || 'Failed to update order status');
+      }
+
+      // Update the local state with the returned order data
+      if (responseData.order) {
+        setOrders(orders.map(o => 
+          o._id === id ? { ...o, ...responseData.order, updatedAt: new Date(responseData.order.updatedAt) } : o
+        ));
+      } else {
+        // Fallback to basic update if no order data returned
+        setOrders(orders.map(o => 
+          o._id === id ? { ...o, status: newStatus, updatedAt: new Date() } : o
+        ));
+      }
       
-      setOrders(orders.map(order => 
-        order._id === id 
-          ? { ...order, status: newStatus, updatedAt: new Date() } 
-          : order
-      ));
+      // Show success message
+      toast({
+        title: 'Success',
+        description: responseData.message || `Order status updated to ${newStatus}`,
+      });
+
+      // Refresh orders after a short delay to ensure we have the latest data
+      setTimeout(fetchOrders, 1000);
     } catch (err) {
       console.error('Error updating order status:', err);
-      alert('Failed to update order status');
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to update order status',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -303,14 +355,30 @@ export default function OrdersPage() {
     }
     
     try {
-      const ordersCollection = await getCollection<DbOrderDocument>('orders');
-      const filter = { _id: new ObjectId(id) };
-      await ordersCollection.deleteOne(filter);
-      
+      const response = await fetch('/api/orders', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete order');
+      }
+
       setOrders(orders.filter(order => order._id !== id));
+      toast({
+        title: 'Success',
+        description: 'Order deleted successfully',
+      });
     } catch (err) {
       console.error('Error deleting order:', err);
-      alert('Failed to delete order');
+      toast({
+        title: 'Error',
+        description: 'Failed to delete order',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -319,7 +387,7 @@ export default function OrdersPage() {
     if (field === sortField) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
-      setSortField(field);
+      setSortField(field as keyof IOrder);
       setSortDirection('desc');
     }
   };
@@ -388,273 +456,122 @@ export default function OrdersPage() {
 
   // Render orders table
   return (
-    <div className="px-4 sm:px-6 lg:px-8">
-      <div className="sm:flex sm:items-center">
-        <div className="sm:flex-auto">
-          <h1 className="text-xl font-semibold text-gray-900">Orders</h1>
-          <p className="mt-2 text-sm text-gray-700">
-            A list of all orders including their details and status.
-          </p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Orders</h1>
+          <p className="text-gray-500">Manage and track all orders</p>
         </div>
-        <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
-          <Link
-            href="/admin/orders/new"
-            className="inline-flex items-center justify-center rounded-md border border-transparent bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 sm:w-auto"
-          >
-            Add order
-          </Link>
-        </div>
+        <Button onClick={() => {}} variant="outline">
+          <Download className="mr-2 h-4 w-4" />
+          Export
+        </Button>
       </div>
-      
-      {/* Filters and search */}
-      <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="relative rounded-md shadow-sm w-full sm:w-64">
-          <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-            <Search className="h-4 w-4 text-gray-400" />
-          </div>
-          <input
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div className="md:col-span-2">
+          <Input
             type="text"
-            className="block w-full rounded-md border-gray-300 pl-10 focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
             placeholder="Search orders..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full"
           />
         </div>
-        
-        <div className="flex gap-2">
-          <select
-            className="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="all">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="processing">Processing</option>
-            <option value="delivered">Delivered</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-          
-          <select
-            className="rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 sm:text-sm"
-            value={paymentFilter}
-            onChange={(e) => setPaymentFilter(e.target.value)}
-          >
-            <option value="all">All Payments</option>
-            <option value="pending">Pending</option>
-            <option value="paid">Paid</option>
-            <option value="refunded">Refunded</option>
-          </select>
-        </div>
-      </div>
-      
-      {/* Orders table */}
-      <div className="mt-8 flex flex-col">
-        <div className="-my-2 -mx-4 overflow-x-auto sm:-mx-6 lg:-mx-8">
-          <div className="inline-block min-w-full py-2 align-middle md:px-6 lg:px-8">
-            <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-              <table className="min-w-full divide-y divide-gray-300">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th 
-                      scope="col" 
-                      className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6 cursor-pointer"
-                      onClick={() => handleSort('orderNumber')}
-                    >
-                      <div className="flex items-center">
-                        Order
-                        {sortField === 'orderNumber' && (
-                          sortDirection === 'asc' ? 
-                            <ChevronUp className="ml-1 w-4 h-4" /> : 
-                            <ChevronDown className="ml-1 w-4 h-4" />
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      scope="col" 
-                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer"
-                      onClick={() => handleSort('customer')}
-                    >
-                      <div className="flex items-center">
-                        Customer
-                        {sortField === 'customer' && (
-                          sortDirection === 'asc' ? 
-                            <ChevronUp className="ml-1 w-4 h-4" /> : 
-                            <ChevronDown className="ml-1 w-4 h-4" />
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      scope="col" 
-                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
-                    >
-                      Items
-                    </th>
-                    <th 
-                      scope="col" 
-                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer"
-                      onClick={() => handleSort('total')}
-                    >
-                      <div className="flex items-center">
-                        Total
-                        {sortField === 'total' && (
-                          sortDirection === 'asc' ? 
-                            <ChevronUp className="ml-1 w-4 h-4" /> : 
-                            <ChevronDown className="ml-1 w-4 h-4" />
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      scope="col" 
-                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
-                    >
-                      Status
-                    </th>
-                    <th 
-                      scope="col" 
-                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900"
-                    >
-                      Payment
-                    </th>
-                    <th 
-                      scope="col" 
-                      className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 cursor-pointer"
-                      onClick={() => handleSort('createdAt')}
-                    >
-                      <div className="flex items-center">
-                        Date
-                        {sortField === 'createdAt' && (
-                          sortDirection === 'asc' ? 
-                            <ChevronUp className="ml-1 w-4 h-4" /> : 
-                            <ChevronDown className="ml-1 w-4 h-4" />
-                        )}
-                      </div>
-                    </th>
-                    <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {filteredOrders.map((order) => (
-                    <tr key={order._id.toString()} className="hover:bg-gray-50">
-                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
-                        {order.orderNumber}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {typeof order.customer === 'string' ? order.customer : order.customer.name}
-                      </td>
-                      <td className="px-3 py-4 text-sm text-gray-500">
-                        {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        GH₵{order.total.toFixed(2)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4">
-                        <span 
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            order.status === 'delivered' 
-                              ? 'bg-green-100 text-green-800' 
-                              : order.status === 'processing'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : order.status === 'cancelled'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}
-                        >
-                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        <span 
-                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                            order.paymentStatus === 'paid' 
-                              ? 'bg-green-100 text-green-800' 
-                              : order.paymentStatus === 'pending'
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}
-                        >
-                          {order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {new Date(order.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => router.push(`/admin/orders/${order._id}`)}
-                            className="text-primary-600 hover:text-primary-900"
-                            title="View order"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => router.push(`/admin/orders/${order._id}/edit`)}
-                            className="text-indigo-600 hover:text-indigo-900"
-                            title="Edit order"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteOrder(order._id.toString())}
-                            className="text-red-600 hover:text-red-900"
-                            title="Delete order"
-                          >
-                            <Trash className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      {/* Pagination */}
-      <div className="mt-4 flex items-center justify-between">
-        <div className="text-sm text-gray-700">
-          Showing <span className="font-medium">1</span> to{' '}
-          <span className="font-medium">{filteredOrders.length}</span> of{' '}
-          <span className="font-medium">{filteredOrders.length}</span> results
-        </div>
-        <div className="flex space-x-2">
-          <button
-            disabled={true}
-            className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Previous
-          </button>
-          <button
-            disabled={true}
-            className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Next
-          </button>
-        </div>
-      </div>
-      
-      {/* Export buttons */}
-      <div className="mt-6 flex justify-end space-x-3">
-        <button
-          type="button"
-          onClick={() => exportToCSV(filteredOrders, 'orders')}
-          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="rounded-md border border-gray-300 p-2"
         >
-          <Download className="-ml-0.5 mr-1.5 h-4 w-4" />
-          CSV
-        </button>
-        <button
-          type="button"
-          onClick={() => exportToJSON(filteredOrders, 'orders')}
-          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+          <option value="all">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="processing">Processing</option>
+          <option value="delivered">Delivered</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <select
+          value={paymentFilter}
+          onChange={(e) => setPaymentFilter(e.target.value)}
+          className="rounded-md border border-gray-300 p-2"
         >
-          <FileText className="-ml-0.5 mr-1.5 h-4 w-4" />
-          JSON
-        </button>
+          <option value="all">All Payments</option>
+          <option value="pending">Pending</option>
+          <option value="paid">Paid</option>
+          <option value="refunded">Refunded</option>
+        </select>
+      </div>
+
+      <div className="rounded-lg border bg-white">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b bg-gray-50">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Order</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Customer</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Payment</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Total</th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Date</th>
+                <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {sortedOrders.map((order) => (
+                <tr key={order._id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <div className="font-medium">{order.orderNumber}</div>
+                    <div className="text-sm text-gray-500">{order.items.length} items</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="font-medium">{order.customer.name}</div>
+                    <div className="text-sm text-gray-500">{order.customer.email}</div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                      order.status === 'delivered' ? 'bg-green-100 text-green-800' :
+                      order.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
+                      order.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {order.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold ${
+                      order.paymentStatus === 'paid' ? 'bg-green-100 text-green-800' :
+                      order.paymentStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {order.paymentStatus}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 font-medium">
+                    GHS {(order.total || 0).toFixed(2)}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {new Date(order.createdAt).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleUpdateOrderStatus(order._id, 'delivered')}
+                      >
+                        <CheckCircle className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDeleteOrder(order._id)}
+                      >
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

@@ -3,9 +3,10 @@ import { OrderService } from '@/lib/db-service';
 import dbConnect from '@/lib/dbConnect';
 
 export async function POST(request: Request) {
+  console.log('=== Starting Checkout Process ===');
   try {
     const body = await request.json();
-    console.log('Received checkout request:', body);
+    console.log('1. Received checkout request body:', JSON.stringify(body, null, 2));
     
     // Validate required fields
     const requiredFields = [
@@ -23,16 +24,17 @@ export async function POST(request: Request) {
 
     const missingFields = requiredFields.filter(field => !body[field]);
     if (missingFields.length > 0) {
-      console.error('Missing required fields:', missingFields);
+      console.error('2. Validation Error - Missing required fields:', missingFields);
       return NextResponse.json(
         { error: `Missing required fields: ${missingFields.join(', ')}` },
         { status: 400 }
       );
     }
+    console.log('2. All required fields validated successfully');
 
-    console.log('Connecting to database...');
+    console.log('3. Attempting database connection...');
     await dbConnect();
-    console.log('Database connected successfully');
+    console.log('4. Database connected successfully');
     
     // Format the data according to the Order schema
     const orderData = {
@@ -46,8 +48,8 @@ export async function POST(request: Request) {
       items: body.items.map((item: any) => ({
         name: item.name,
         quantity: item.quantity,
-        price: item.price,
-        total: item.total,
+        price: Number(item.price),
+        total: Number(item.price) * item.quantity,
         notes: item.notes || '',
         restaurant: item.restaurant || '',
         image: item.image || ''
@@ -55,25 +57,33 @@ export async function POST(request: Request) {
       status: 'pending',
       paymentStatus: body.paymentMethod === 'cash' ? 'pending' : 'paid',
       paymentMethod: body.paymentMethod,
-      subtotal: body.subtotal,
-      deliveryFee: body.deliveryFee,
-      total: body.total,
+      subtotal: Number(body.subtotal),
+      deliveryFee: Number(body.deliveryFee),
+      total: Number(body.total),
       address: `${body.address}, ${body.campus}${body.landmark ? `, ${body.landmark}` : ''}`,
       notes: body.notes || ''
     };
 
-    console.log('Attempting to create order with data:', orderData);
-    const order = await OrderService.create(orderData);
-    console.log('Order created successfully:', order);
+    console.log('5. Formatted order data:', JSON.stringify(orderData, null, 2));
+    console.log('6. Attempting to create order in database...');
     
-    return NextResponse.json({
-      success: true,
-      orderId: order._id,
-      orderNumber: order.orderNumber
-    });
-    
+    try {
+      const order = await OrderService.create(orderData);
+      console.log('7. Order created successfully:', JSON.stringify(order, null, 2));
+      
+      return NextResponse.json({
+        success: true,
+        orderId: order._id,
+        orderNumber: order.orderNumber
+      });
+    } catch (dbError) {
+      console.error('Database Error:', dbError);
+      console.error('Full database error details:', JSON.stringify(dbError, Object.getOwnPropertyNames(dbError), 2));
+      throw new Error('Failed to save order to database');
+    }
   } catch (error) {
-    console.error('Checkout error:', error);
+    console.error('Checkout Error:', error);
+    console.error('Full error details:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
     return NextResponse.json(
       { error: 'Failed to process checkout' },
       { status: 500 }

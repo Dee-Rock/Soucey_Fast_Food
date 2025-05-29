@@ -1,76 +1,129 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { OrderService } from '@/lib/db-service';
 import dbConnect from '@/lib/dbConnect';
+import { getCollection } from '@/lib/mongodb';
+import { ObjectId } from 'mongodb';
 
-export async function GET(request: NextRequest) {
+// Add dynamic configuration
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+export async function GET() {
   try {
-    console.log('Attempting to connect to MongoDB...');
+    console.log('Fetching orders...');
     await dbConnect();
-    console.log('MongoDB connection successful');
-    
-    // Check if we need to filter by status
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status');
-    console.log('Fetching orders with status filter:', status || 'none');
-    
-    let orders;
-    try {
-      if (status) {
-        orders = await OrderService.query({ status });
-      } else {
-        orders = await OrderService.getAll();
-      }
-      console.log('Retrieved orders:', orders);
-    } catch (dbError) {
-      console.error('Database query error:', dbError);
-      throw new Error(`Database query failed: ${dbError.message}`);
-    }
-    
-    if (!orders) {
-      console.error('No orders returned from database');
-      throw new Error('No orders found in database');
-    }
-    
-    // Transform orders to match frontend expectations
-    const transformedOrders = orders.map((order: any) => {
-      console.log('Processing order:', order);
-      return {
-        _id: order._id.toString(),
-        orderNumber: order.orderNumber,
-        customer: {
-          name: order.customer.name,
-          email: order.customer.email,
-          phone: order.customer.phone,
-          address: order.customer.address
-        },
-        items: order.items.map((item: any) => ({
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          total: item.total,
-          notes: item.notes || '',
-          _id: item._id?.toString(),
-          restaurant: item.restaurant || '',
-          image: item.image || ''
-        })),
-        status: order.status,
-        paymentStatus: order.paymentStatus,
-        paymentMethod: order.paymentMethod,
-        subtotal: order.subtotal,
-        deliveryFee: order.deliveryFee,
-        total: order.total,
-        address: order.address,
-        createdAt: order.createdAt.toISOString(),
-        updatedAt: order.updatedAt.toISOString()
-      };
-    });
-    
-    console.log('Sending transformed orders to client:', transformedOrders);
-    return NextResponse.json(transformedOrders);
+    const orders = await OrderService.getAll();
+    console.log(`Found ${orders.length} orders`);
+    return NextResponse.json({ orders });
   } catch (error) {
-    console.error('Error in orders API route:', error);
+    console.error('Error fetching orders:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch orders' },
+      { error: 'Failed to fetch orders' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const { id, status } = await request.json();
+    console.log('Received update request:', { id, status });
+    
+    // Validate required fields
+    if (!id || !status) {
+      console.log('Missing required fields');
+      return NextResponse.json(
+        { error: 'Missing required fields: id and status' },
+        { status: 400 }
+      );
+    }
+
+    // Validate status value
+    const validStatuses = ['pending', 'processing', 'delivered', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      console.log('Invalid status:', status);
+      return NextResponse.json(
+        { error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    await dbConnect();
+    const ordersCollection = await getCollection('orders');
+    
+    // Ensure id is properly formatted for MongoDB
+    let objectId;
+    try {
+      objectId = new ObjectId(id);
+    } catch (error) {
+      console.error('Invalid ObjectId:', id);
+      return NextResponse.json(
+        { error: 'Invalid order ID format' },
+        { status: 400 }
+      );
+    }
+    
+    console.log('Updating order:', { objectId, status });
+    
+    // Update the order
+    const result = await ordersCollection.updateOne(
+      { _id: objectId },
+      { 
+        $set: { 
+          status,
+          updatedAt: new Date()
+        } 
+      }
+    );
+    
+    console.log('Update result:', result);
+    
+    if (result.matchedCount === 0) {
+      console.log('Order not found:', objectId);
+      return NextResponse.json(
+        { error: 'Order not found' },
+        { status: 404 }
+      );
+    }
+
+    if (result.modifiedCount === 0) {
+      console.log('Order status not modified');
+      return NextResponse.json(
+        { error: 'Order status was not modified' },
+        { status: 400 }
+      );
+    }
+    
+    const updatedOrder = await ordersCollection.findOne({ _id: objectId });
+    console.log('Updated order:', updatedOrder);
+    
+    return NextResponse.json({ 
+      success: true,
+      message: `Order status updated to ${status}`,
+      updatedAt: new Date(),
+      order: updatedOrder
+    });
+  } catch (error) {
+    console.error('Error updating order:', error);
+    return NextResponse.json(
+      { error: 'Failed to update order' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { id } = await request.json();
+    const ordersCollection = await getCollection('orders');
+    
+    await ordersCollection.deleteOne({ _id: new ObjectId(id) });
+    
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete order' },
       { status: 500 }
     );
   }
@@ -79,28 +132,64 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    console.log('Received order creation request:', data);
+    console.log('Received order creation request:', JSON.stringify(data, null, 2));
     
     // Validate required fields
-    if (!data.customer || !data.email || !data.phone || !data.amount || !data.items || !data.address) {
-      console.error('Missing required fields in order creation');
+    const requiredFields = [
+      'customer',
+      'items',
+      'paymentMethod',
+      'subtotal',
+      'deliveryFee',
+      'total',
+      'address'
+    ];
+    
+    const missingFields = requiredFields.filter(field => !data[field]);
+    if (missingFields.length > 0) {
+      console.error('Missing required fields:', missingFields);
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: `Missing required fields: ${missingFields.join(', ')}` },
         { status: 400 }
       );
     }
     
-    // Add current date if not provided
-    if (!data.date) {
-      data.date = new Date().toISOString().split('T')[0];
+    // Ensure numeric fields are numbers
+    data.subtotal = Number(data.subtotal);
+    data.deliveryFee = Number(data.deliveryFee);
+    data.total = Number(data.total);
+    
+    // Ensure items have proper numeric values
+    data.items = data.items.map((item: any) => ({
+      ...item,
+      price: Number(item.price),
+      quantity: Number(item.quantity),
+      total: Number(item.price) * Number(item.quantity)
+    }));
+    
+    // Add order number if not provided
+    if (!data.orderNumber) {
+      data.orderNumber = `ORD${Date.now().toString().slice(-8)}${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
     }
     
-    console.log('Creating order with data:', data);
+    // Set default status if not provided
+    if (!data.status) {
+      data.status = 'pending';
+    }
+    
+    // Set payment status based on payment method if not provided
+    if (!data.paymentStatus) {
+      data.paymentStatus = data.paymentMethod === 'cash' ? 'pending' : 'paid';
+    }
+    
+    console.log('Creating order with data:', JSON.stringify(data, null, 2));
     const order = await OrderService.create(data);
-    console.log('Order created:', order);
+    console.log('Order created:', JSON.stringify(order, null, 2));
+    
     return NextResponse.json(order, { status: 201 });
   } catch (error) {
     console.error('Error creating order:', error);
+    console.error('Full error details:', JSON.stringify(error, Object.getOwnPropertyNames(error), 2));
     return NextResponse.json(
       { error: 'Failed to create order' },
       { status: 500 }

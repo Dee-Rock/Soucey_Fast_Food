@@ -111,61 +111,67 @@ export default function MyOrdersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        console.log('Fetching orders...');
-        const response = await fetch('/api/orders');
-        console.log('Response status:', response.status);
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => null);
-          console.error('Error response:', errorData);
-          throw new Error(
-            errorData?.error || `Failed to fetch orders: ${response.status} ${response.statusText}`
-          );
-        }
-
-        const data = await response.json();
-        console.log('Received orders data:', data);
-        
-        if (!Array.isArray(data)) {
-          console.error('Invalid data format received:', data);
-          throw new Error('Invalid data format received from server');
-        }
-        
-        // Transform the data to match our expected format
-        const formattedOrders = data.map((order: any) => {
-          console.log('Processing order:', order);
-          return {
-            ...order,
-            id: order._id, // Ensure we have an id field
-            // Ensure all dates are strings
-            createdAt: order.createdAt || new Date().toISOString(),
-            updatedAt: order.updatedAt || new Date().toISOString(),
-            // Ensure items have all required fields
-            items: (order.items || []).map((item: any) => ({
-              name: item.name || 'Unnamed Item',
-              quantity: item.quantity || 1,
-              price: item.price || 0,
-              total: item.total || item.price * (item.quantity || 1) || 0,
-              notes: item.notes,
-              _id: item._id
-            }))
-          };
-        });
-        
-        console.log('Formatted orders:', formattedOrders);
-        setOrders(formattedOrders);
-      } catch (err) {
-        console.error('Error fetching orders:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load orders. Please try again later.');
-      } finally {
-        setIsLoading(false);
+  const fetchOrders = async () => {
+    try {
+      console.log('Fetching orders...');
+      const response = await fetch('/api/orders');
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        console.error('Error response:', errorData);
+        throw new Error(
+          errorData?.error || `Failed to fetch orders: ${response.status} ${response.statusText}`
+        );
       }
-    };
 
+      const data = await response.json();
+      console.log('Received orders data:', data);
+      
+      if (!data || !data.orders) {
+        console.error('Invalid data format received:', data);
+        throw new Error('Invalid data format received from server');
+      }
+      
+      // Transform the data to match our expected format
+      const formattedOrders = data.orders.map((order: any) => {
+        console.log('Processing order:', order);
+        return {
+          ...order,
+          id: order._id, // Ensure we have an id field
+          // Ensure all dates are strings
+          createdAt: order.createdAt || new Date().toISOString(),
+          updatedAt: order.updatedAt || new Date().toISOString(),
+          // Ensure items have all required fields
+          items: (order.items || []).map((item: any) => ({
+            name: item.name || 'Unnamed Item',
+            quantity: item.quantity || 1,
+            price: item.price || 0,
+            total: item.total || item.price * (item.quantity || 1) || 0,
+            notes: item.notes,
+            _id: item._id
+          }))
+        };
+      });
+      
+      console.log('Formatted orders:', formattedOrders);
+      setOrders(formattedOrders);
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load orders. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchOrders();
+    
+    // Set up polling every 10 seconds to check for updates
+    const intervalId = setInterval(fetchOrders, 10000);
+    
+    // Cleanup interval on component unmount
+    return () => clearInterval(intervalId);
   }, []);
 
   // Function to get status badge color
