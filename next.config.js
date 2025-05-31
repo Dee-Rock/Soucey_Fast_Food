@@ -55,12 +55,6 @@ const nextConfig = {
   experimental: {
     // Use serverComponentsExternalPackages for MongoDB
     serverComponentsExternalPackages: ['mongodb', 'mongodb-client-encryption']
-  },
-  // Configure API route settings
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb'
-    }
   }
 };
 
