@@ -1,29 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UserService } from '@/lib/db-service';
+import dbConnect from '@/lib/dbConnect';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Check if we need to filter by role or status
-    const { searchParams } = new URL(request.url);
-    const role = searchParams.get('role');
-    const status = searchParams.get('status');
+    await dbConnect();
     
-    let users;
-    if (role && status) {
-      users = await UserService.query({ role, status });
-    } else if (role) {
-      users = await UserService.query({ role });
-    } else if (status) {
-      users = await UserService.query({ status });
-    } else {
-      users = await UserService.getAll();
-    }
+    // Get all users
+    const users = await UserService.getAll();
     
-    return NextResponse.json(users);
+    return NextResponse.json({
+      success: true,
+      users
+    });
   } catch (error) {
     console.error('Error fetching users:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch users' },
+      { 
+        success: false,
+        error: 'Failed to fetch users'
+      },
       { status: 500 }
     );
   }

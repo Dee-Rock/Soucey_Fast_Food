@@ -2,6 +2,34 @@ import { NextResponse } from 'next/server';
 import { OrderService } from '@/lib/db-service';
 import dbConnect from '@/lib/dbConnect';
 
+interface OrderItem {
+  name: string;
+  quantity: number;
+  price: number;
+  total: number;
+  notes?: string;
+  restaurant?: string;
+  image?: string;
+}
+
+interface OrderData {
+  customerName: string;
+  customerEmail: string;
+  customerPhone: string;
+  address: string;
+  items: OrderItem[];
+  subtotal: number;
+  deliveryFee: number;
+  total: number;
+  paymentMethod: string;
+  status: string;
+}
+
+interface OrderResponse {
+  _id: string;
+  orderNumber: string;
+}
+
 export async function POST(request: Request) {
   console.log('=== Starting Checkout Process ===');
   try {
@@ -68,7 +96,7 @@ export async function POST(request: Request) {
     console.log('6. Attempting to create order in database...');
     
     try {
-      const order = await OrderService.create(orderData);
+      const order = await OrderService.create(orderData) as OrderResponse;
       console.log('7. Order created successfully:', JSON.stringify(order, null, 2));
       
       return NextResponse.json({

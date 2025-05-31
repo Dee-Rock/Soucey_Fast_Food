@@ -249,9 +249,15 @@ export default function AdminDashboard() {
                 {recentOrders.length > 0 ? (
                   recentOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.id}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.customer}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.amount}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex flex-col">
+                          <span>{order.customer.name}</span>
+                          <span className="text-xs text-gray-400">{order.customer.email}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        GHS {order.total.toFixed(2)}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                           ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : ''}
@@ -262,7 +268,9 @@ export default function AdminDashboard() {
                           {order.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.date}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {new Date(order.createdAt).toLocaleDateString()}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="max-w-xs truncate">{order.items.join(', ')}</div>
                       </td>

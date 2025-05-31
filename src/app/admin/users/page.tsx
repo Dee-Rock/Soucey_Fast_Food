@@ -18,15 +18,26 @@ import {
   Calendar,
   Loader
 } from 'lucide-react'
-import { fetchUsers } from '@/lib/admin-mongodb'
-import { IUser as UserType } from '@/models/User'
-import { exportToCSV, exportToJSON, getFormattedDate } from '@/utils/export-data'
+import { UserService } from '@/lib/db-service'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { toast } from '@/components/ui/use-toast'
+
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  createdAt: Date;
+}
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<UserType[]>([])
+  const [users, setUsers] = useState<User[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchTerm, setSearchTerm] = useState('')
   const [filterRole, setFilterRole] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [sortBy, setSortBy] = useState('name')
@@ -34,35 +45,37 @@ export default function UsersPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalUsers, setTotalUsers] = useState(0)
-  const [selectedUser, setSelectedUser] = useState<UserType | null>(null)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const itemsPerPage = 10;
 
-  // Load users
   useEffect(() => {
-    const loadUsers = async () => {
+    const fetchUsers = async () => {
       try {
-        setIsLoading(true)
-        const result = await fetchUsers(
-          currentPage, 
-          itemsPerPage, 
-          filterRole, 
-          filterStatus, 
-          searchQuery
-        )
-        
-        setUsers(result.items)
-        setTotalUsers(result.total)
-        setTotalPages(result.totalPages)
-      } catch (err) {
-        console.error('Error loading users:', err)
-        setError('Failed to load users. Please try again.')
+        const response = await fetch('/api/users')
+        const data = await response.json()
+        if (data.success) {
+          setUsers(data.users)
+        }
+      } catch (error) {
+        console.error('Error fetching users:', error)
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch users',
+          variant: 'destructive',
+        })
       } finally {
         setIsLoading(false)
       }
     }
-    
-    loadUsers()
-  }, [currentPage, filterRole, filterStatus, searchQuery, sortBy, sortDirection])
+
+    fetchUsers()
+  }, [])
+
+  const filteredUsers = users.filter(user => 
+    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.phone.toLowerCase().includes(searchTerm.toLowerCase())
+  )
 
   // Handle page change
   const handlePageChange = (page: number) => {
@@ -104,386 +117,44 @@ export default function UsersPage() {
     setCurrentPage(1)
   }
 
+  if (isLoading) {
+    return <div>Loading users...</div>
+  }
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Users</h1>
-        <div className="flex space-x-2">
-          <button 
-            onClick={() => exportToCSV(users, `users-${getFormattedDate()}.csv`)}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
-            disabled={isLoading || users.length === 0}
-          >
-            <Download className="h-4 w-4 mr-1" />
-            Export CSV
-          </button>
-          <button 
-            onClick={() => exportToJSON(users, `users-${getFormattedDate()}.json`)}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
-            disabled={isLoading || users.length === 0}
-          >
-            <Download className="h-4 w-4 mr-1" />
-            Export JSON
-          </button>
-        </div>
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Users</h1>
+        <Input
+          type="search"
+          placeholder="Search users..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-xs"
+        />
       </div>
 
-      {/* Search and Filter */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <form onSubmit={handleSearch} className="relative flex-grow">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search users by name or email..."
-            className="pl-10 pr-4 py-2 border border-gray-300 rounded-md w-full"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <button type="submit" className="sr-only">Search</button>
-        </form>
-        <div className="flex gap-2">
-          <select 
-            className="px-3 py-2 border border-gray-300 rounded-md"
-            value={filterRole}
-            onChange={(e) => handleRoleFilter(e.target.value)}
-          >
-            <option value="">All Roles</option>
-            <option value="customer">Customer</option>
-            <option value="admin">Admin</option>
-            <option value="restaurant_owner">Restaurant Owner</option>
-          </select>
-          <select 
-            className="px-3 py-2 border border-gray-300 rounded-md"
-            value={filterStatus}
-            onChange={(e) => handleStatusFilter(e.target.value)}
-          >
-            <option value="">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          <button
-            className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500"
-            onClick={() => {
-              setSearchQuery('')
-              setFilterRole('')
-              setFilterStatus('')
-              setSortBy('name')
-              setSortDirection('asc')
-              setCurrentPage(1)
-            }}
-          >
-            <Filter className="h-4 w-4 mr-1" />
-            Reset Filters
-          </button>
-        </div>
+      <div className="grid gap-4">
+        {filteredUsers.map(user => (
+          <Card key={user._id} className="p-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="font-semibold">{user.name}</h3>
+                <p className="text-sm text-gray-500">{user.email}</p>
+                <p className="text-sm text-gray-500">{user.phone}</p>
+              </div>
+              <div className="text-right">
+                <span className="inline-block px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                  {user.role}
+                </span>
+                <p className="text-xs text-gray-500 mt-1">
+                  Joined {new Date(user.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+          </Card>
+        ))}
       </div>
-
-      {/* Loading State */}
-      {isLoading && users.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12">
-          <Loader className="w-12 h-12 text-pink-600 animate-spin mb-4" />
-          <p className="text-gray-600">Loading users...</p>
-        </div>
-      )}
-      
-      {/* Error State */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-8">
-          {error}
-        </div>
-      )}
-      
-      {/* Users Table */}
-      {!isLoading && !error && users.length === 0 ? (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-8 text-center">
-          <p className="text-gray-500 mb-4">No users found matching your criteria.</p>
-          <button
-            onClick={() => {
-              setSearchQuery('')
-              setFilterRole('')
-              setFilterStatus('')
-              setSortBy('name')
-              setSortDirection('asc')
-              setCurrentPage(1)
-            }}
-            className="inline-flex items-center px-4 py-2 border border-pink-600 shadow-sm text-sm font-medium rounded-md text-white bg-pink-600 hover:bg-pink-700"
-          >
-            <UsersIcon className="h-4 w-4 mr-2" />
-            View All Users
-          </button>
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                    onClick={() => handleSort('name')}
-                  >
-                    <div className="flex items-center">
-                      Name
-                      {sortBy === 'name' && (
-                        sortDirection === 'asc' ? 
-                          <ChevronUp className="h-4 w-4 ml-1" /> : 
-                          <ChevronDown className="h-4 w-4 ml-1" />
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                    onClick={() => handleSort('email')}
-                  >
-                    <div className="flex items-center">
-                      Email
-                      {sortBy === 'email' && (
-                        sortDirection === 'asc' ? 
-                          <ChevronUp className="h-4 w-4 ml-1" /> : 
-                          <ChevronDown className="h-4 w-4 ml-1" />
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                    onClick={() => handleSort('role')}
-                  >
-                    <div className="flex items-center">
-                      Role
-                      {sortBy === 'role' && (
-                        sortDirection === 'asc' ? 
-                          <ChevronUp className="h-4 w-4 ml-1" /> : 
-                          <ChevronDown className="h-4 w-4 ml-1" />
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                    onClick={() => handleSort('status')}
-                  >
-                    <div className="flex items-center">
-                      Status
-                      {sortBy === 'status' && (
-                        sortDirection === 'asc' ? 
-                          <ChevronUp className="h-4 w-4 ml-1" /> : 
-                          <ChevronDown className="h-4 w-4 ml-1" />
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                    onClick={() => handleSort('orders')}
-                  >
-                    <div className="flex items-center">
-                      Orders
-                      {sortBy === 'orders' && (
-                        sortDirection === 'asc' ? 
-                          <ChevronUp className="h-4 w-4 ml-1" /> : 
-                          <ChevronDown className="h-4 w-4 ml-1" />
-                      )}
-                    </div>
-                  </th>
-                  <th 
-                    scope="col" 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
-                    onClick={() => handleSort('joinDate')}
-                  >
-                    <div className="flex items-center">
-                      Join Date
-                      {sortBy === 'joinDate' && (
-                        sortDirection === 'asc' ? 
-                          <ChevronUp className="h-4 w-4 ml-1" /> : 
-                          <ChevronDown className="h-4 w-4 ml-1" />
-                      )}
-                    </div>
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {users.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 bg-pink-100 rounded-full flex items-center justify-center">
-                          <User className="h-5 w-5 text-pink-600" />
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                          <div className="text-sm text-gray-500">{user.phone}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex items-center">
-                        <Mail className="h-4 w-4 mr-2 text-gray-400" />
-                        {user.email}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
-                        ${user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 
-                          user.role === 'restaurant_owner' ? 'bg-blue-100 text-blue-800' : 
-                          'bg-gray-100 text-gray-800'}`}
-                      >
-                        {user.role === 'admin' ? 'Admin' : 
-                         user.role === 'restaurant_owner' ? 'Restaurant Owner' : 
-                         'Customer'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
-                        ${user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}
-                      >
-                        {user.status === 'active' ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {user.orders}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex items-center">
-                        <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                        {user.joinDate}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button
-                        onClick={() => setSelectedUser(user)}
-                        className="text-pink-600 hover:text-pink-900 mr-4"
-                        title="View details"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-                      <button 
-                        className="text-blue-600 hover:text-blue-900"
-                        title="Edit user"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex items-center justify-between px-6 py-4 bg-gray-50 border-t border-gray-200">
-            <div className="text-sm text-gray-500">
-              Showing <span className="font-medium">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="font-medium">
-                {Math.min(currentPage * itemsPerPage, totalUsers)}
-              </span> of <span className="font-medium">{totalUsers}</span> users
-            </div>
-            <div className="flex space-x-2">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1 || isLoading}
-                className={`px-3 py-1 rounded-md ${currentPage === 1 || isLoading ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-              >
-                Previous
-              </button>
-              <span className="px-3 py-1 text-sm text-gray-700">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages || isLoading}
-                className={`px-3 py-1 rounded-md ${currentPage === totalPages || isLoading ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'}`}
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* User Details Modal */}
-      {selectedUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold text-gray-900">User Details</h2>
-                <button 
-                  onClick={() => setSelectedUser(null)}
-                  className="text-gray-400 hover:text-gray-500"
-                >
-                  &times;
-                </button>
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="flex flex-col md:flex-row gap-6">
-                <div className="md:w-1/3">
-                  <div className="bg-pink-100 h-32 w-32 rounded-full flex items-center justify-center mx-auto">
-                    <User className="h-16 w-16 text-pink-600" />
-                  </div>
-                  <div className="mt-4 text-center">
-                    <h3 className="text-lg font-medium text-gray-900">{selectedUser.name}</h3>
-                    <p className="text-sm text-gray-500">{selectedUser.role === 'admin' ? 'Admin' : 
-                      selectedUser.role === 'restaurant_owner' ? 'Restaurant Owner' : 
-                      'Customer'}</p>
-                    <span className={`mt-2 px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full 
-                      ${selectedUser.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}
-                    >
-                      {selectedUser.status === 'active' ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
-                </div>
-                <div className="md:w-2/3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500">Email</h4>
-                      <p className="mt-1">{selectedUser.email}</p>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500">Phone</h4>
-                      <p className="mt-1">{selectedUser.phone}</p>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500">Join Date</h4>
-                      <p className="mt-1">{selectedUser.joinDate}</p>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500">Last Login</h4>
-                      <p className="mt-1">{selectedUser.lastLogin}</p>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500">Total Orders</h4>
-                      <p className="mt-1">{selectedUser.orders}</p>
-                    </div>
-                    {selectedUser.address && (
-                      <div className="col-span-2">
-                        <h4 className="text-sm font-medium text-gray-500">Address</h4>
-                        <p className="mt-1">{selectedUser.address}</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
-              <button
-                onClick={() => setSelectedUser(null)}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 mr-2"
-              >
-                Close
-              </button>
-              <button
-                className="px-4 py-2 bg-pink-600 text-white rounded-md text-sm font-medium hover:bg-pink-700"
-              >
-                Edit User
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

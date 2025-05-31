@@ -114,74 +114,45 @@ interface IOrder {
   updatedAt: Date;
 }
 
-// Mock data
-const mockOrders: IOrder[] = [
+interface OrderItem {
+  id: string;
+  name: string;
+  quantity: number;
+  price: number;
+  total: number;
+  notes?: string;
+  restaurant?: string;
+  image?: string;
+}
+
+// Update the mock data to use proper types
+const mockOrders = [
   {
-    _id: '1',
-    orderNumber: 'ORD-001',
-    customer: {
-      name: 'John Doe',
-      email: 'john@example.com',
-      phone: '+233 20 123 4567',
-      address: '123 Main St, Accra'
-    },
-    items: [
-      {
-        _id: '1',
-        name: 'Jollof Rice with Chicken',
-        quantity: 2,
-        price: 25.99,
-        total: 51.98
-      },
-      {
-        _id: '2',
-        name: 'Waakye Special',
-        quantity: 1,
-        price: 20.50,
-        total: 20.50
-      }
-    ],
-    status: 'pending',
-    paymentStatus: 'pending',
-    paymentMethod: 'mobile_money',
-    total: 72.48,
-    email: 'john@example.com',
-    phone: '+233 20 123 4567',
-    address: '123 Main St, Accra',
-    notes: '',
-    createdAt: new Date('2024-03-20T10:30:00Z'),
-    updatedAt: new Date('2024-03-20T10:30:00Z')
+    id: '1',
+    name: 'Jollof Rice',
+    quantity: 2,
+    price: 25,
+    total: 50,
+    notes: 'Extra spicy',
+    restaurant: 'Campus Kitchen'
   },
   {
-    _id: '2',
-    orderNumber: 'ORD-002',
-    customer: {
-      name: 'Sarah Smith',
-      email: 'sarah@example.com',
-      phone: '+233 24 987 6543',
-      address: '456 Circle Ave, Kumasi'
-    },
-    items: [
-      {
-        _id: '3',
-        name: 'Banku with Tilapia',
-        quantity: 1,
-        price: 35.00,
-        total: 35.00
-      }
-    ],
-    status: 'delivered',
-    paymentStatus: 'paid',
-    paymentMethod: 'card',
-    total: 35.00,
-    email: 'sarah@example.com',
-    phone: '+233 24 987 6543',
-    address: '456 Circle Ave, Kumasi',
-    notes: '',
-    createdAt: new Date('2024-03-20T09:15:00Z'),
-    updatedAt: new Date('2024-03-20T09:15:00Z')
+    id: '2',
+    name: 'Fried Rice',
+    quantity: 1,
+    price: 30,
+    total: 30,
+    restaurant: 'Campus Kitchen'
+  },
+  {
+    id: '3',
+    name: 'Banku and Tilapia',
+    quantity: 2,
+    price: 40,
+    total: 80,
+    restaurant: 'Local Delights'
   }
-];
+] as OrderItem[];
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<IOrder[]>([]);

@@ -13,7 +13,6 @@ import {
   Utensils,
   Loader
 } from 'lucide-react'
-import { fetchAnalyticsData } from '@/lib/admin-firestore'
 import { exportToCSV, exportToJSON, getFormattedDate } from '@/utils/export-data'
 import {
   Chart as ChartJS,
@@ -28,6 +27,8 @@ import {
   Legend,
 } from 'chart.js'
 import { Line, Bar, Pie, Doughnut } from 'react-chartjs-2'
+import { Card } from '@/components/ui/card'
+import { OrderService } from '@/lib/db-service'
 
 // Register ChartJS components
 ChartJS.register(
@@ -69,6 +70,15 @@ interface AnalyticsData {
     orders: number;
     revenue: number;
   }[];
+  totalOrders: number;
+  totalRevenue: number;
+  averageOrderValue: number;
+  ordersByStatus: {
+    pending: number;
+    processing: number;
+    delivered: number;
+    cancelled: number;
+  };
 }
 
 export default function AnalyticsPage() {
@@ -78,343 +88,91 @@ export default function AnalyticsPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const loadAnalyticsData = async () => {
+    const fetchAnalytics = async () => {
       try {
-        setIsLoading(true)
-        const data = await fetchAnalyticsData(timeRange)
-        setAnalyticsData(data)
-      } catch (err) {
-        console.error('Error loading analytics data:', err)
-        setError('Failed to load analytics data. Please try again.')
+        const response = await fetch('/api/analytics')
+        const data = await response.json()
+        if (data.success) {
+          setAnalyticsData(data.analytics)
+        }
+      } catch (error) {
+        console.error('Error fetching analytics:', error)
       } finally {
         setIsLoading(false)
       }
     }
-    
-    loadAnalyticsData()
-  }, [timeRange])
+
+    fetchAnalytics()
+  }, [])
 
   return (
-    <div>
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <select 
-            className="px-3 py-2 border rounded-md text-sm w-full sm:w-auto"
-            value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value)}
-          >
-            <option value="last_7_days">Last 7 days</option>
-            <option value="last_30_days">Last 30 days</option>
-            <option value="last_90_days">Last 90 days</option>
-            <option value="all_time">All time</option>
-          </select>
-          <div className="flex gap-2 w-full sm:w-auto">
-            <button 
-              onClick={() => {
-                if (analyticsData) {
-                  // Convert analytics data to array format for CSV export
-                  const exportData = [
-                    // Revenue data
-                    ...analyticsData.revenueData.labels.map((label, index) => ({
-                      type: 'Revenue',
-                      label,
-                      value: analyticsData.revenueData.data[index]
-                    })),
-                    // Orders data
-                    ...analyticsData.ordersData.labels.map((label, index) => ({
-                      type: 'Orders',
-                      label,
-                      value: analyticsData.ordersData.data[index]
-                    })),
-                    // Top selling items
-                    ...analyticsData.topSellingItems.map(item => ({
-                      type: 'Top Item',
-                      name: item.name,
-                      quantity: item.quantity,
-                      revenue: item.revenue
-                    })),
-                    // Top restaurants
-                    ...analyticsData.topRestaurants.map(restaurant => ({
-                      type: 'Top Restaurant',
-                      name: restaurant.name,
-                      orders: restaurant.orders,
-                      revenue: restaurant.revenue
-                    }))
-                  ];
-                  exportToCSV(exportData, `analytics-${getFormattedDate()}.csv`);
-                }
-              }}
-              className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 flex-1 sm:flex-initial"
-              disabled={isLoading || !analyticsData}
-            >
-              <Download className="h-4 w-4 mr-1" />
-              Export CSV
-            </button>
-            <button 
-              onClick={() => analyticsData && exportToJSON(analyticsData, `analytics-${getFormattedDate()}.json`)}
-              className="inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 flex-1 sm:flex-initial"
-              disabled={isLoading || !analyticsData}
-            >
-              <FileText className="h-4 w-4 mr-1" />
-              Export JSON
-            </button>
-          </div>
-        </div>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-6">Analytics Dashboard</h1>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-2">Total Orders</h3>
+          <p className="text-3xl font-bold">{analyticsData?.totalOrders}</p>
+        </Card>
+        
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-2">Total Revenue</h3>
+          <p className="text-3xl font-bold">GHS {analyticsData?.totalRevenue.toFixed(2)}</p>
+        </Card>
+        
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-2">Average Order Value</h3>
+          <p className="text-3xl font-bold">GHS {analyticsData?.averageOrderValue.toFixed(2)}</p>
+        </Card>
       </div>
-
-      {/* Loading State */}
-      {isLoading && (
-        <div className="flex flex-col items-center justify-center py-12">
-          <Loader className="w-12 h-12 text-pink-600 animate-spin mb-4" />
-          <p className="text-gray-600">Loading analytics data...</p>
-        </div>
-      )}
       
-      {/* Error State */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-8">
-          {error}
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4">Orders by Status</h3>
+        <div className="h-[400px]">
+          <Bar
+            data={{
+              labels: ['Pending', 'Processing', 'Delivered', 'Cancelled'],
+              datasets: [
+                {
+                  label: 'Orders by Status',
+                  data: [
+                    analyticsData?.ordersByStatus.pending,
+                    analyticsData?.ordersByStatus.processing,
+                    analyticsData?.ordersByStatus.delivered,
+                    analyticsData?.ordersByStatus.cancelled
+                  ],
+                  backgroundColor: [
+                    'rgba(255, 206, 86, 0.5)',
+                    'rgba(54, 162, 235, 0.5)',
+                    'rgba(75, 192, 192, 0.5)',
+                    'rgba(255, 99, 132, 0.5)',
+                  ],
+                  borderColor: [
+                    'rgba(255, 206, 86, 1)',
+                    'rgba(54, 162, 235, 1)',
+                    'rgba(75, 192, 192, 1)',
+                    'rgba(255, 99, 132, 1)',
+                  ],
+                  borderWidth: 1,
+                },
+              ],
+            }}
+            options={{
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  position: 'top' as const,
+                },
+                title: {
+                  display: true,
+                  text: 'Order Distribution',
+                },
+              },
+            }}
+          />
         </div>
-      )}
-      
-      {/* Analytics Content */}
-      {!isLoading && !error && analyticsData && (
-        <div className="space-y-8">
-          {/* Revenue & Orders Charts */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base sm:text-lg font-medium text-gray-900">Revenue</h2>
-                <div className="bg-pink-100 p-1.5 sm:p-2 rounded-full">
-                  <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" />
-                </div>
-              </div>
-              <div className="h-56 sm:h-64">
-                <Line 
-                  data={{
-                    labels: analyticsData.revenueData.labels,
-                    datasets: [
-                      {
-                        label: 'Revenue (GHS)',
-                        data: analyticsData.revenueData.data,
-                        borderColor: '#ec4899',
-                        backgroundColor: 'rgba(236, 72, 153, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                      },
-                    ],
-                  }}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                      legend: {
-                        position: 'top',
-                      },
-                      title: {
-                        display: false,
-                      },
-                    },
-                    scales: {
-                      y: {
-                        beginAtZero: true,
-                        ticks: {
-                          callback: (value) => `GHS ${value}`
-                        }
-                      }
-                    }
-                  }}
-                />
-              </div>
-            </div>
-            
-            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base sm:text-lg font-medium text-gray-900">Orders</h2>
-                <div className="bg-pink-100 p-1.5 sm:p-2 rounded-full">
-                  <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" />
-                </div>
-              </div>
-              <div className="h-56 sm:h-64">
-                <Bar
-                  data={{
-                    labels: analyticsData.ordersData.labels,
-                    datasets: [
-                      {
-                        label: 'Number of Orders',
-                        data: analyticsData.ordersData.data,
-                        backgroundColor: 'rgba(236, 72, 153, 0.7)',
-                        borderRadius: 4,
-                      },
-                    ],
-                  }}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                      legend: {
-                        position: 'top',
-                      },
-                      title: {
-                        display: false,
-                      },
-                    },
-                    scales: {
-                      y: {
-                        beginAtZero: true,
-                      }
-                    }
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-          
-          {/* Users & Categories Charts */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base sm:text-lg font-medium text-gray-900">New Users</h2>
-                <div className="bg-pink-100 p-1.5 sm:p-2 rounded-full">
-                  <Users className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" />
-                </div>
-              </div>
-              <div className="h-56 sm:h-64">
-                <Line
-                  data={{
-                    labels: analyticsData.usersData.labels,
-                    datasets: [
-                      {
-                        label: 'New Users',
-                        data: analyticsData.usersData.data,
-                        borderColor: '#0ea5e9',
-                        backgroundColor: 'rgba(14, 165, 233, 0.1)',
-                        fill: true,
-                        tension: 0.4,
-                      },
-                    ],
-                  }}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                      legend: {
-                        position: 'top',
-                      },
-                      title: {
-                        display: false,
-                      },
-                    },
-                    scales: {
-                      y: {
-                        beginAtZero: true,
-                      }
-                    }
-                  }}
-                />
-              </div>
-            </div>
-            
-            <div className="bg-white p-4 sm:p-6 rounded-lg shadow-sm border border-gray-100">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-base sm:text-lg font-medium text-gray-900">Popular Categories</h2>
-                <div className="bg-pink-100 p-1.5 sm:p-2 rounded-full">
-                  <Utensils className="h-4 w-4 sm:h-5 sm:w-5 text-pink-600" />
-                </div>
-              </div>
-              <div className="h-56 sm:h-64">
-                <Doughnut
-                  data={{
-                    labels: analyticsData.categoryData.labels,
-                    datasets: [
-                      {
-                        label: 'Orders by Category',
-                        data: analyticsData.categoryData.data,
-                        backgroundColor: [
-                          'rgba(236, 72, 153, 0.7)',
-                          'rgba(14, 165, 233, 0.7)',
-                          'rgba(249, 115, 22, 0.7)',
-                          'rgba(132, 204, 22, 0.7)',
-                          'rgba(168, 85, 247, 0.7)',
-                          'rgba(234, 179, 8, 0.7)',
-                        ],
-                        borderWidth: 1,
-                      },
-                    ],
-                  }}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                      legend: {
-                        position: 'right',
-                      },
-                      title: {
-                        display: false,
-                      },
-                    },
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-          
-          {/* Top Selling Items */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-4 sm:p-6 border-b border-gray-100">
-              <h2 className="text-base sm:text-lg font-medium text-gray-900">Top Selling Items</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
-                    <th scope="col" className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                    <th scope="col" className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {analyticsData.topSellingItems.map((item, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">{item.name}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">{item.quantity}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">GHS {item.revenue.toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          
-          {/* Top Restaurants */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-4 sm:p-6 border-b border-gray-100">
-              <h2 className="text-base sm:text-lg font-medium text-gray-900">Top Restaurants</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Restaurant</th>
-                    <th scope="col" className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orders</th>
-                    <th scope="col" className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {analyticsData.topRestaurants.map((restaurant, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">{restaurant.name}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">{restaurant.orders}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">GHS {restaurant.revenue.toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
+      </Card>
     </div>
   )
 }

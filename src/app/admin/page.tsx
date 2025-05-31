@@ -214,8 +214,8 @@ export default function AdminDashboard() {
                   recentOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50">
                       <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">{order.id?.substring(0, 8)}...</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden sm:table-cell">{order.customer}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">{order.amount}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden sm:table-cell">{order.customer.name}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">GH₵{order.total}</td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                           ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : ''}
@@ -226,7 +226,9 @@ export default function AdminDashboard() {
                           {order.status}
                         </span>
                       </td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden md:table-cell">{order.date}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden md:table-cell">
+                        {new Date(order.createdAt).toLocaleDateString()}
+                      </td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden lg:table-cell">
                         <div className="max-w-xs truncate">{order.items.map(item => item.name).join(', ')}</div>
                       </td>
