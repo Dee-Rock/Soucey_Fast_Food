@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { ClerkProvider } from '@clerk/nextjs';
@@ -7,13 +7,21 @@ import { Toaster } from '@/components/ui/toaster';
 import Navbar from '@/components/navbar';
 import Footer from '@/components/footer';
 import { CartProvider } from '@/context/cart-context';
+import AuthCheck from '@/components/auth-check';
+import { headers } from 'next/headers';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Soucey - Food Ordering & Delivery',
   description: 'Order delicious food for delivery at your school in Ghana',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({
@@ -21,6 +29,14 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Get the current pathname
+  const headersList = headers();
+  const pathname = headersList.get("x-pathname") || "/";
+  
+  // List of public routes that don't need authentication
+  const publicRoutes = ["/sign-in", "/sign-up", "/", "/about", "/contact", "/restaurants", "/menu"];
+  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+
   return (
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
@@ -30,7 +46,11 @@ export default function RootLayout({
               <div className="flex flex-col min-h-screen overflow-x-hidden">
                 <Navbar />
                 <main className="flex-grow w-full">
-                  {children}
+                  {isPublicRoute ? (
+                    children
+                  ) : (
+                    <AuthCheck>{children}</AuthCheck>
+                  )}
                 </main>
                 <Footer />
               </div>
