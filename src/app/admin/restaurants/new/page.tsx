@@ -104,13 +104,20 @@ export default function NewRestaurantPage() {
       // Create restaurant document via API
       const restaurantData = {
         ...formData,
-        logo: logoUrl,
-        logoUrl: logoUrl, // MongoDB model expects logoUrl
+        logo: logoUrl || '/images/placeholder-restaurant.jpg', // Provide a default logo
+        logoUrl: logoUrl || '/images/placeholder-restaurant.jpg', // MongoDB model expects logoUrl
+        coverUrl: coverPreview || '/images/placeholder-cover.jpg',
         rating: 0,
         totalOrders: 0,
         isActive: true,
         featuredRestaurant: false,
+        deliveryTime: '30-45',
+        // Ensure numeric fields are numbers
+        deliveryFee: Number(formData.deliveryFee) || 0,
+        minOrderAmount: Number(formData.minOrderAmount) || 0
       };
+
+      console.log('Submitting restaurant data:', restaurantData);
 
       const response = await fetch('/api/restaurants', {
         method: 'POST',
@@ -122,6 +129,7 @@ export default function NewRestaurantPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('Server error:', errorData);
         throw new Error(errorData.error || 'Failed to create restaurant');
       }
 
