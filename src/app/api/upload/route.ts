@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile } from 'fs/promises';
-import path from 'path';
+import { put } from '@vercel/blob';
 import { v4 as uuidv4 } from 'uuid';
 
 // Install uuid with: pnpm add uuid @types/uuid
+
+export const runtime = 'edge';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,29 +17,17 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Generate a unique filename with original extension
+    const filename = `${uuidv4()}-${file.name}`;
     
-    // Get file extension
-    const fileExtension = path.extname(file.name);
-    
-    // Create a unique filename
-    const fileName = `${uuidv4()}${fileExtension}`;
-    
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
-    
-    // Convert file to buffer
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    
-    // Write the file to the uploads directory
-    const filePath = path.join(uploadsDir, fileName);
-    await writeFile(filePath, buffer);
-    
-    // Return the URL to the uploaded file
-    const fileUrl = `/uploads/${fileName}`;
+    // Upload to Vercel Blob Storage
+    const { url } = await put(filename, file, {
+      access: 'public',
+    });
     
     return NextResponse.json({ 
-      url: fileUrl,
+      url,
       success: true 
     });
   } catch (error) {
