@@ -104,7 +104,7 @@ export default function AdminDashboard() {
             change: formatTrend(-1.8), // Example trend
             trend: 'down',
             icon: UtensilsCrossed,
-            href: '/admin/menu'
+            href: '/admin/menu-items'
           }
         ])
 
