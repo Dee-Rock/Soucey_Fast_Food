@@ -141,7 +141,7 @@ const ContactPage = () => {
                 <MapPin className="w-5 h-5 text-pink-600 mt-1 mr-3" />
                 <div>
                   <h3 className="font-medium">Address</h3>
-                  <p className="text-gray-600">Campus Area, University of Ghana, Legon, Accra, Ghana</p>
+                  <p className="text-gray-600">Campus Area, Ho Technical Unversity, Ho, Volta Region, Ghana</p>
                 </div>
               </div>
               
@@ -149,8 +149,8 @@ const ContactPage = () => {
                 <Phone className="w-5 h-5 text-pink-600 mt-1 mr-3" />
                 <div>
                   <h3 className="font-medium">Phone</h3>
-                  <p className="text-gray-600">+233 20 123 4567</p>
-                  <p className="text-gray-600">+233 30 987 6543</p>
+                  <p className="text-gray-600">+233 54 570 4442</p>
+                  <p className="text-gray-600">+233 24 340 4515</p>
                 </div>
               </div>
               
@@ -158,8 +158,8 @@ const ContactPage = () => {
                 <Mail className="w-5 h-5 text-pink-600 mt-1 mr-3" />
                 <div>
                   <h3 className="font-medium">Email</h3>
-                  <p className="text-gray-600">info@soucey.com</p>
-                  <p className="text-gray-600">support@soucey.com</p>
+                  <p className="text-gray-600">noraagbenorto5@gmail.com</p>
+                  <p className="text-gray-600">delalirock5@gmail.com</p>
                 </div>
               </div>
               
@@ -167,9 +167,9 @@ const ContactPage = () => {
                 <Clock className="w-5 h-5 text-pink-600 mt-1 mr-3" />
                 <div>
                   <h3 className="font-medium">Business Hours</h3>
-                  <p className="text-gray-600">Monday - Friday: 8:00 AM - 10:00 PM</p>
+                  <p className="text-gray-600">Monday - Friday: 5:00 PM - 12:00 AM</p>
                   <p className="text-gray-600">Saturday: 9:00 AM - 11:00 PM</p>
-                  <p className="text-gray-600">Sunday: 10:00 AM - 9:00 PM</p>
+                  <p className="text-gray-600">Sunday: 2:00 PM - 12:00 AM</p>
                 </div>
               </div>
             </div>
