@@ -31,12 +31,32 @@ interface Stat {
   href: string;
 }
 
+// Add Customer interface
+interface Customer {
+  name?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+}
+
+// Update Order interface to be more specific about customer type
+interface OrderWithCustomer extends Omit<Order, 'customer'> {
+  customer: string | Customer;
+}
+
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stat[]>([])
-  const [recentOrders, setRecentOrders] = useState<Order[]>([])
+  const [recentOrders, setRecentOrders] = useState<OrderWithCustomer[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [timeRange, setTimeRange] = useState('last_7_days')
+
+  // Helper function to safely get customer display name
+  const getCustomerDisplayName = (customer: string | Customer | undefined): string => {
+    if (!customer) return 'Unknown';
+    if (typeof customer === 'string') return customer;
+    return customer.name || customer.email || 'Unknown';
+  }
 
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -94,7 +114,25 @@ export default function AdminDashboard() {
           throw new Error('Failed to fetch recent orders')
         }
         const orders = await ordersResponse.json()
-        setRecentOrders(orders)
+        
+        // Ensure orders is an array
+        const ordersArray = Array.isArray(orders) ? orders : [];
+        
+        // Map orders to expected format
+        const formattedOrders = ordersArray.map(order => ({
+          ...order,
+          // Ensure required fields exist
+          id: order.id || order._id,
+          customer: typeof order.customer === 'string' 
+            ? order.customer 
+            : order.customer?.name || order.customer?.email || 'Unknown',
+          total: order.total || 0,
+          status: order.status || 'pending',
+          items: Array.isArray(order.items) ? order.items : [],
+          createdAt: order.createdAt || new Date().toISOString()
+        }));
+        
+        setRecentOrders(formattedOrders)
         
       } catch (err) {
         console.error('Error loading dashboard data:', err)
@@ -213,9 +251,15 @@ export default function AdminDashboard() {
                 {recentOrders.length > 0 ? (
                   recentOrders.map((order) => (
                     <tr key={order.id} className="hover:bg-gray-50">
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">{order.id?.substring(0, 8)}...</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden sm:table-cell">{order.customer.name}</td>
-                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">GH₵{order.total}</td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">
+                        {order.id?.substring(0, 8)}...
+                      </td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden sm:table-cell">
+                        {getCustomerDisplayName(order.customer)}
+                      </td>
+                      <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500">
+                        GH₵{order.total}
+                      </td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                           ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : ''}
@@ -230,7 +274,9 @@ export default function AdminDashboard() {
                         {new Date(order.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden lg:table-cell">
-                        <div className="max-w-xs truncate">{order.items.map(item => item.name).join(', ')}</div>
+                        <div className="max-w-xs truncate">
+                          {order.items.map(item => item.name).join(', ')}
+                        </div>
                       </td>
                     </tr>
                   ))

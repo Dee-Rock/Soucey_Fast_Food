@@ -179,21 +179,32 @@ export default function OrdersPage() {
       const data = await response.json();
       console.log('Received orders data:', data);
       
-      if (!data || !data.orders) {
+      // Check if data exists and has orders property
+      if (!data || (!Array.isArray(data) && !Array.isArray(data.orders))) {
         console.error('Invalid data format received:', data);
         throw new Error('Invalid data format received from server');
       }
       
+      // Handle both array and object with orders property
+      const ordersArray = Array.isArray(data) ? data : data.orders;
+      
       // Transform the data to match our expected format
-      const formattedOrders: IOrder[] = data.orders.map((order: any) => ({
-        _id: order._id || '',
+      const formattedOrders: IOrder[] = ordersArray.map((order: any) => ({
+        _id: order._id || order.id || '',
         orderNumber: order.orderNumber || `ORD-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
-        customer: {
-          name: order.customer || order.customerName || 'Unknown',
-          email: order.email || '',
-          phone: order.phone || '',
-          address: order.address || ''
-        },
+        customer: typeof order.customer === 'string' 
+          ? {
+              name: order.customer,
+              email: '',
+              phone: '',
+              address: order.address || ''
+            }
+          : {
+              name: order.customer?.name || 'Unknown',
+              email: order.customer?.email || '',
+              phone: order.customer?.phone || '',
+              address: order.customer?.address || order.address || ''
+            },
         items: Array.isArray(order.items) ? order.items.map((item: any) => ({
           name: item.name || 'Unknown Item',
           quantity: Number(item.quantity) || 0,
@@ -225,7 +236,7 @@ export default function OrdersPage() {
       setError(null);
     } catch (err) {
       console.error('Error fetching orders:', err);
-      setError('Failed to load orders');
+      setError(err instanceof Error ? err.message : 'Failed to load orders');
     } finally {
       setIsLoading(false);
     }

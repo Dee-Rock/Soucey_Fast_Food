@@ -14,9 +14,31 @@ export async function GET() {
     await dbConnect();
     const orders = await OrderService.getAll();
     console.log(`Found ${orders.length} orders`);
-    return NextResponse.json({ orders });
+    
+    // Format orders for frontend consumption
+    const formattedOrders = orders.map(order => ({
+      ...order,
+      _id: order._id.toString(),
+      id: order._id.toString(), // Add id field for compatibility
+      // Format customer data consistently
+      customer: typeof order.customer === 'string' 
+        ? { name: order.customer, email: '', phone: '', address: '' }
+        : order.customer,
+      createdAt: order.createdAt.toISOString(),
+      updatedAt: order.updatedAt.toISOString()
+    }));
+    
+    return NextResponse.json({ orders: formattedOrders });
   } catch (error) {
     console.error('Error fetching orders:', error);
+    // Log detailed error information
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+    }
     return NextResponse.json(
       { error: 'Failed to fetch orders' },
       { status: 500 }
