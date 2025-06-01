@@ -13,7 +13,7 @@ const Footer = () => {
           <div>
             <h3 className="text-xl font-bold mb-4 text-pink-400">Soucey</h3>
             <p className="text-gray-300 mb-4">
-              Your favorite food delivery service for campus life in Ghana. Order delicious meals from local restaurants and have them delivered right to your doorstep.
+              Your favorite food delivery service for campus life in HO. Order delicious meals from our restaurants and have them delivered right to your location.
             </p>
             <div className="flex space-x-4">
               <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="text-gray-300 hover:text-pink-400 transition-colors">
@@ -66,15 +66,15 @@ const Footer = () => {
             <ul className="space-y-3">
               <li className="flex items-start">
                 <MapPin className="w-5 h-5 text-pink-400 mr-2 mt-1" />
-                <span className="text-gray-300">Campus Area, Accra, Ghana</span>
+                <span className="text-gray-300">Campus Area, Ho, Ghana</span>
               </li>
               <li className="flex items-center">
                 <Phone className="w-5 h-5 text-pink-400 mr-2" />
-                <span className="text-gray-300">+233 20 123 4567</span>
+                <span className="text-gray-300">+233 54 570 4442</span>
               </li>
               <li className="flex items-center">
                 <Mail className="w-5 h-5 text-pink-400 mr-2" />
-                <span className="text-gray-300">info@soucey.com</span>
+                <span className="text-gray-300">noraagbenorto5@gmail.com</span>
               </li>
             </ul>
           </div>
@@ -83,9 +83,9 @@ const Footer = () => {
           <div>
             <h3 className="text-xl font-bold mb-4 text-pink-400">Opening Hours</h3>
             <ul className="space-y-2">
-              <li className="text-gray-300">Monday - Friday: 8:00 AM - 10:00 PM</li>
-              <li className="text-gray-300">Saturday: 9:00 AM - 11:00 PM</li>
-              <li className="text-gray-300">Sunday: 10:00 AM - 9:00 PM</li>
+              <li className="text-gray-300">Monday - Friday: 8:00 PM - 11:00 PM</li>
+              <li className="text-gray-300">Saturday: 10:00 AM - 11:00 PM</li>
+              <li className="text-gray-300">Sunday: 11:00 AM - 11:00 PM</li>
             </ul>
           </div>
         </div>
