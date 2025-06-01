@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@babel/runtime": "^7.24.0",
     "@clerk/nextjs": "^4.29.9",
     "@hookform/resolvers": "^3.3.4",
     "@paystack/inline-js": "^2.22.4",
@@ -43,9 +44,9 @@
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@babel/core": "^7.27.3",
-    "@babel/plugin-transform-runtime": "^7.27.3",
-    "@babel/preset-env": "^7.27.2",
+    "@babel/core": "^7.24.0",
+    "@babel/plugin-transform-runtime": "^7.24.0",
+    "@babel/preset-env": "^7.24.0",
     "@types/mongoose": "^5.11.97",
     "@types/node": "^20.11.19",
     "@types/react": "^18.2.55",
