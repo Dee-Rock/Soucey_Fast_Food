@@ -7,15 +7,19 @@ import { UserButton, useUser } from '@clerk/nextjs';
 import { ShoppingCart, Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/context/cart-context';
+import { usePathname } from 'next/navigation';
 
 const Navbar = () => {
   const { isSignedIn } = useUser();
   const { itemCount } = useCart();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const pathname = usePathname();
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
+
+  const isHomePage = pathname === '/';
 
   return (
     <header className="bg-white shadow-sm sticky top-0 z-50">
@@ -42,23 +46,25 @@ const Navbar = () => {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center space-x-6">
-            <Link href="/" className="text-gray-700 hover:text-pink-600 transition-colors">
-              Home
-            </Link>
-            <Link href="/menu" className="text-gray-700 hover:text-pink-600 transition-colors">
-              Menu
-            </Link>
-            <Link href="/restaurants" className="text-gray-700 hover:text-pink-600 transition-colors">
-              Restaurants
-            </Link>
-            <Link href="/about" className="text-gray-700 hover:text-pink-600 transition-colors">
-              About
-            </Link>
-            <Link href="/contact" className="text-gray-700 hover:text-pink-600 transition-colors">
-              Contact
-            </Link>
-          </nav>
+          {!isHomePage && (
+            <nav className="hidden md:flex space-x-6">
+              <Link href="/" className="text-gray-700 hover:text-pink-600 transition-colors">
+                Home
+              </Link>
+              <Link href="/menu" className="text-gray-700 hover:text-pink-600 transition-colors">
+                Menu
+              </Link>
+              <Link href="/restaurants" className="text-gray-700 hover:text-pink-600 transition-colors">
+                Restaurants
+              </Link>
+              <Link href="/about" className="text-gray-700 hover:text-pink-600 transition-colors">
+                About
+              </Link>
+              <Link href="/contact" className="text-gray-700 hover:text-pink-600 transition-colors">
+                Contact
+              </Link>
+            </nav>
+          )}
 
           {/* User Actions */}
           <div className="hidden md:flex items-center space-x-4">
@@ -90,28 +96,30 @@ const Navbar = () => {
           </div>
 
           {/* Mobile Menu Button */}
-          <div className="md:hidden flex items-center space-x-4">
-            <Link href="/cart" className="relative">
-              <ShoppingCart className="w-6 h-6 text-gray-700" />
-              {itemCount > 0 && (
-                <span className="absolute -top-2 -right-2 bg-pink-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                  {itemCount}
-                </span>
-              )}
-            </Link>
-            <button onClick={toggleMenu} className="text-gray-700">
-              {isMenuOpen ? (
-                <X className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
-              )}
-            </button>
-          </div>
+          {!isHomePage && (
+            <div className="md:hidden flex items-center space-x-4">
+              <Link href="/cart" className="relative">
+                <ShoppingCart className="w-6 h-6 text-gray-700" />
+                {itemCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-pink-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                    {itemCount}
+                  </span>
+                )}
+              </Link>
+              <button onClick={toggleMenu} className="text-gray-700">
+                {isMenuOpen ? (
+                  <X className="w-6 h-6" />
+                ) : (
+                  <Menu className="w-6 h-6" />
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Mobile Menu */}
-      {isMenuOpen && (
+      {!isHomePage && isMenuOpen && (
         <div className="md:hidden bg-white border-t border-gray-100 py-4">
           <div className="container mx-auto px-4 flex flex-col space-y-4">
             <Link href="/" className="text-gray-700 hover:text-pink-600 transition-colors py-2" onClick={toggleMenu}>
