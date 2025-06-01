@@ -24,7 +24,7 @@ interface FoodCardProps {
 const FoodCard: React.FC<FoodCardProps> = (props) => {
 
   return (
-    <div className="food-card bg-white rounded-lg overflow-hidden shadow-md border border-gray-100">
+    <div className="bg-white rounded-lg overflow-hidden shadow-md border border-gray-100 transition-all duration-300 hover:shadow-lg">
       <div className="relative h-48 w-full">
         {props.category && (
           <div className="absolute top-0 right-0 bg-pink-500 text-white px-3 py-1 rounded-bl-lg z-10">
@@ -38,10 +38,16 @@ const FoodCard: React.FC<FoodCardProps> = (props) => {
         )}
         <div className="w-full h-full relative">
           <Image
-            src={props.image || '/placeholder-food.jpg'}
+            src={props.image || '/images/placeholder-food.jpg'}
             alt={props.name}
             fill
             className="object-cover"
+            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            priority={false}
+            quality={75}
+            onError={(e: any) => {
+              e.target.src = '/images/placeholder-food.jpg';
+            }}
           />
         </div>
       </div>

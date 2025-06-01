@@ -171,10 +171,16 @@ const FoodDetailPage: React.FC<FoodDetailPageProps> = ({ params }) => {
         <div className="lg:w-1/2">
           <div className="relative h-80 lg:h-[500px] w-full rounded-lg overflow-hidden">
             <Image
-              src={food.image}
+              src={food.image || '/images/placeholder-food.jpg'}
               alt={food.name}
               fill
               className="object-cover"
+              sizes="(max-width: 1024px) 100vw, 50vw"
+              priority
+              quality={90}
+              onError={(e: any) => {
+                e.target.src = '/images/placeholder-food.jpg';
+              }}
             />
           </div>
         </div>
@@ -278,10 +284,16 @@ const FoodDetailPage: React.FC<FoodDetailPageProps> = ({ params }) => {
                 <div className="bg-white rounded-lg overflow-hidden shadow-md border border-gray-100 transition-all duration-300 hover:shadow-lg">
                   <div className="relative h-48 w-full">
                     <Image
-                      src={item?.image || ''}
+                      src={item?.image || '/images/placeholder-food.jpg'}
                       alt={item?.name || ''}
                       fill
                       className="object-cover"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      priority={false}
+                      quality={75}
+                      onError={(e: any) => {
+                        e.target.src = '/images/placeholder-food.jpg';
+                      }}
                     />
                   </div>
                   <div className="p-4">

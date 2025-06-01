@@ -118,27 +118,38 @@ export default function NewMenuItemPage() {
       // Handle image file upload
       let imageUrl = "";
       if (imageFile) {
-        // Create a FormData object to upload the file
-        const formData = new FormData();
-        formData.append('file', imageFile);
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', imageFile);
         
-        // In a production app, you would upload this to your server or a service like Cloudinary
-        // For now, we'll create a placeholder URL
-        imageUrl = URL.createObjectURL(imageFile);
-        
-        // Note: In production, replace this with actual file upload logic
-        // const uploadResponse = await fetch('/api/upload', {
-        //   method: 'POST',
-        //   body: formData
-        // });
-        // const { url } = await uploadResponse.json();
-        // imageUrl = url;
+        try {
+          const uploadResponse = await fetch('/api/upload', {
+            method: 'POST',
+            body: uploadFormData
+          });
+          
+          if (!uploadResponse.ok) {
+            throw new Error('Failed to upload image');
+          }
+          
+          const { url } = await uploadResponse.json();
+          imageUrl = url;
+        } catch (uploadError) {
+          console.error('Error uploading image:', uploadError);
+          toast({
+            title: "Upload Error",
+            description: "Failed to upload image. Please try again.",
+            variant: "destructive",
+            duration: 3000,
+          });
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       // Create menu item document via API
       const menuItemData = {
         ...formData,
-        imageUrl: imageUrl,
+        imageUrl: imageUrl || '/images/placeholder-food.jpg',
         price: parseFloat(formData.price),
         isAvailable: true,
         isFeatured: false,

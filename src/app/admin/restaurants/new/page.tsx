@@ -84,21 +84,63 @@ export default function NewRestaurantPage() {
       // Handle logo file upload
       let logoUrl = "";
       if (logoFile) {
-        // Create a FormData object to upload the file
-        const formData = new FormData();
-        formData.append('file', logoFile);
+        const logoFormData = new FormData();
+        logoFormData.append('file', logoFile);
         
-        // In a production app, you would upload this to your server or a service like Cloudinary
-        // For now, we'll create a placeholder URL
-        logoUrl = URL.createObjectURL(logoFile);
+        try {
+          const uploadResponse = await fetch('/api/upload', {
+            method: 'POST',
+            body: logoFormData
+          });
+          
+          if (!uploadResponse.ok) {
+            throw new Error('Failed to upload logo');
+          }
+          
+          const { url } = await uploadResponse.json();
+          logoUrl = url;
+        } catch (uploadError) {
+          console.error('Error uploading logo:', uploadError);
+          toast({
+            title: "Upload Error",
+            description: "Failed to upload logo. Please try again.",
+            variant: "destructive",
+            duration: 3000,
+          });
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Handle cover image upload
+      let coverUrl = "";
+      if (coverFile) {
+        const coverFormData = new FormData();
+        coverFormData.append('file', coverFile);
         
-        // Note: In production, replace this with actual file upload logic
-        // const uploadResponse = await fetch('/api/upload', {
-        //   method: 'POST',
-        //   body: formData
-        // });
-        // const { url } = await uploadResponse.json();
-        // logoUrl = url;
+        try {
+          const uploadResponse = await fetch('/api/upload', {
+            method: 'POST',
+            body: coverFormData
+          });
+          
+          if (!uploadResponse.ok) {
+            throw new Error('Failed to upload cover image');
+          }
+          
+          const { url } = await uploadResponse.json();
+          coverUrl = url;
+        } catch (uploadError) {
+          console.error('Error uploading cover image:', uploadError);
+          toast({
+            title: "Upload Error",
+            description: "Failed to upload cover image. Please try again.",
+            variant: "destructive",
+            duration: 3000,
+          });
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       // Create restaurant document via API
@@ -106,7 +148,7 @@ export default function NewRestaurantPage() {
         ...formData,
         logo: logoUrl || '/images/placeholder-restaurant.jpg',
         logoUrl: logoUrl || '/images/placeholder-restaurant.jpg',
-        coverUrl: coverPreview || '/images/placeholder-cover.jpg',
+        coverUrl: coverUrl || '/images/placeholder-cover.jpg',
         rating: 0,
         totalOrders: 0,
         isActive: true,
@@ -121,25 +163,17 @@ export default function NewRestaurantPage() {
 
       console.log('Submitting restaurant data:', restaurantData);
 
-      // Create an AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
       const response = await fetch('/api/restaurants', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(restaurantData),
-        signal: controller.signal
       });
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Server error:', errorData);
-        throw new Error(errorData.message || errorData.error || 'Failed to create restaurant');
+        throw new Error(errorData.error || 'Failed to create restaurant');
       }
 
       const newRestaurant = await response.json();
@@ -157,11 +191,7 @@ export default function NewRestaurantPage() {
       let errorMessage = 'Failed to create restaurant';
       
       if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          errorMessage = 'Request timed out. Please try again.';
-        } else {
-          errorMessage = error.message;
-        }
+        errorMessage = error.message;
       }
       
       toast({

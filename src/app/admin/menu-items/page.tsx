@@ -325,10 +325,16 @@ export default function MenuItemsPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="relative h-12 w-12 rounded overflow-hidden">
                         <Image
-                          src={item.imageUrl || '/placeholder-food.jpg'}
+                          src={item.imageUrl || '/images/placeholder-food.jpg'}
                           alt={item.name}
                           fill
                           className="object-cover"
+                          sizes="48px"
+                          priority={false}
+                          quality={75}
+                          onError={(e: any) => {
+                            e.target.src = '/images/placeholder-food.jpg';
+                          }}
                         />
                       </div>
                     </td>
