@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { 
           error: 'Missing required fields', 
+          message: `Missing required fields: ${missingFields.join(', ')}`,
           missingFields 
         },
         { status: 400 }
@@ -42,7 +43,27 @@ export async function POST(request: NextRequest) {
     if (data.deliveryFee) data.deliveryFee = Number(data.deliveryFee);
     if (data.minOrderAmount) data.minOrderAmount = Number(data.minOrderAmount);
     
-    const restaurant = await RestaurantService.create(data);
+    // Set default values for required fields if not provided
+    const defaultValues = {
+      logo: '/images/placeholder-restaurant.jpg',
+      logoUrl: '/images/placeholder-restaurant.jpg',
+      coverUrl: '/images/placeholder-cover.jpg',
+      rating: 0,
+      totalOrders: 0,
+      isActive: true,
+      featuredRestaurant: false,
+      deliveryTime: '30-45',
+      cuisineType: 'Other',
+      openingTime: '09:00',
+      closingTime: '22:00'
+    };
+
+    const restaurantData = {
+      ...defaultValues,
+      ...data
+    };
+    
+    const restaurant = await RestaurantService.create(restaurantData);
     console.log('Created restaurant:', restaurant);
     
     return NextResponse.json(restaurant, { status: 201 });

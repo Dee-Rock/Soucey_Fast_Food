@@ -104,20 +104,26 @@ export default function NewRestaurantPage() {
       // Create restaurant document via API
       const restaurantData = {
         ...formData,
-        logo: logoUrl || '/images/placeholder-restaurant.jpg', // Provide a default logo
-        logoUrl: logoUrl || '/images/placeholder-restaurant.jpg', // MongoDB model expects logoUrl
+        logo: logoUrl || '/images/placeholder-restaurant.jpg',
+        logoUrl: logoUrl || '/images/placeholder-restaurant.jpg',
         coverUrl: coverPreview || '/images/placeholder-cover.jpg',
         rating: 0,
         totalOrders: 0,
         isActive: true,
         featuredRestaurant: false,
         deliveryTime: '30-45',
-        // Ensure numeric fields are numbers
         deliveryFee: Number(formData.deliveryFee) || 0,
-        minOrderAmount: Number(formData.minOrderAmount) || 0
+        minOrderAmount: Number(formData.minOrderAmount) || 0,
+        cuisineType: formData.cuisineType || 'Other',
+        openingTime: formData.openingTime || '09:00',
+        closingTime: formData.closingTime || '22:00'
       };
 
       console.log('Submitting restaurant data:', restaurantData);
+
+      // Create an AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
       const response = await fetch('/api/restaurants', {
         method: 'POST',
@@ -125,12 +131,15 @@ export default function NewRestaurantPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(restaurantData),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json();
         console.error('Server error:', errorData);
-        throw new Error(errorData.error || 'Failed to create restaurant');
+        throw new Error(errorData.message || errorData.error || 'Failed to create restaurant');
       }
 
       const newRestaurant = await response.json();
@@ -145,10 +154,19 @@ export default function NewRestaurantPage() {
       router.push('/admin/restaurants');
     } catch (error) {
       console.error('Error creating restaurant:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      let errorMessage = 'Failed to create restaurant';
+      
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = 'Request timed out. Please try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "Error",
-        description: `Failed to create restaurant: ${errorMessage}`,
+        description: errorMessage,
         variant: "destructive",
         duration: 5000,
       });

@@ -25,16 +25,14 @@ export async function create<T>(model: any, data: any): Promise<T> {
     await dbConnect();
     console.log('DB Service - Database connected');
     
-    // Validate the data against the model schema
-    if (model.schema) {
-      const validationError = model.schema.validateSync(data);
-      if (validationError) {
-        console.error('DB Service - Validation Error:', validationError);
-        throw validationError;
-      }
-    }
+    // Create a new document instance to leverage Mongoose validation
+    const doc = new model(data);
     
-    const result = await model.create(data);
+    // Validate the document
+    await doc.validate();
+    
+    // Save the document
+    const result = await doc.save();
     console.log('DB Service - Document created successfully:', JSON.stringify(result, null, 2));
     return result;
   } catch (error) {
