@@ -13,6 +13,7 @@ const inter = Inter({ subsets: ['latin'] });
 export const metadata: Metadata = {
   title: 'Soucey - Food Ordering & Delivery',
   description: 'Order delicious food for delivery at your school in Ghana',
+  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0',
 };
 
 export default function RootLayout({
@@ -23,12 +24,12 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
-        <body className={inter.className}>
+        <body className={`${inter.className} antialiased`}>
           <ThemeProvider attribute="class" defaultTheme="light">
             <CartProvider>
-              <div className="flex flex-col min-h-screen">
+              <div className="flex flex-col min-h-screen overflow-x-hidden">
                 <Navbar />
-                <main className="flex-grow">
+                <main className="flex-grow w-full">
                   {children}
                 </main>
                 <Footer />
