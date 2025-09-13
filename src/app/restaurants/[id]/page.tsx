@@ -492,12 +492,6 @@ export default function RestaurantDetailPage({ params }: { params: { id: string 
                         </p>
                       </div>
                       <div className="bg-gray-50 p-4 rounded-lg">
-                        <p className="text-sm font-medium text-gray-500">Minimum Order</p>
-                        <p className="text-lg font-semibold text-gray-800">
-                          GH₵{(restaurant.minOrderAmount !== undefined ? restaurant.minOrderAmount : 9.99).toFixed(2)}
-                        </p>
-                      </div>
-                      <div className="bg-gray-50 p-4 rounded-lg">
                         <p className="text-sm font-medium text-gray-500">Rating</p>
                         <div className="flex items-center">
                           <Star className="w-5 h-5 text-yellow-400 fill-current mr-1" />
