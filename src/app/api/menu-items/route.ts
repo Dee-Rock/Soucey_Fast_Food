@@ -19,6 +19,25 @@ export async function GET(request: NextRequest) {
       menuItems = await MenuItemService.getAll();
     }
     
+    // Format menu items with proper image URLs
+    menuItems = menuItems.map((item: any) => {
+      // Convert to plain object if it's a Mongoose document
+      const itemObj = item.toObject ? item.toObject() : item;
+      
+      // Format the image URL
+      let imageUrl = itemObj.imageUrl || itemObj.image || '';
+      if (imageUrl && !imageUrl.startsWith('http') && !imageUrl.startsWith('/')) {
+        imageUrl = `/uploads/${imageUrl}`;
+      }
+      
+      return {
+        ...itemObj,
+        _id: itemObj._id?.toString(),
+        imageUrl,
+        restaurantId: itemObj.restaurantId?.toString(),
+      };
+    });
+    
     // If we need to populate restaurant data
     if (populateRestaurant && menuItems.length > 0) {
       const Restaurant = (await import('@/models/Restaurant')).default;
@@ -45,8 +64,6 @@ export async function GET(request: NextRequest) {
           const restaurant = restaurantMap.get(item.restaurantId?.toString());
           return {
             ...item,
-            _id: item._id.toString(),
-            restaurantId: item.restaurantId?.toString(),
             restaurant: restaurant ? {
               _id: restaurant._id.toString(),
               name: restaurant.name,

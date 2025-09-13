@@ -28,8 +28,16 @@ export default function RestaurantsContent() {
         }
         
         const data = await response.json();
-        const restaurantsList: IRestaurant[] = data;
-        const featuredList: IRestaurant[] = data.filter((restaurant: IRestaurant) => restaurant.featuredRestaurant);
+        
+        // Ensure all restaurants have proper ID fields
+        const normalizeRestaurant = (restaurant: any): IRestaurant => ({
+          ...restaurant,
+          _id: restaurant._id?.toString(),
+          id: restaurant._id?.toString() || restaurant.id
+        });
+        
+        const restaurantsList: IRestaurant[] = data.map(normalizeRestaurant);
+        const featuredList = restaurantsList.filter(restaurant => restaurant.featuredRestaurant);
         
         setRestaurants(restaurantsList);
         setFilteredRestaurants(restaurantsList);
@@ -81,16 +89,32 @@ export default function RestaurantsContent() {
       
       {/* Loading State */}
       {isLoading && (
-        <div className="flex flex-col items-center justify-center py-12">
-          <Loader className="w-12 h-12 text-pink-600 animate-spin mb-4" />
-          <p className="text-gray-600">Loading restaurants...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="bg-white rounded-lg shadow-md overflow-hidden animate-pulse">
+              <div className="h-48 bg-gray-200"></div>
+              <div className="p-4">
+                <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+                <div className="h-4 bg-gray-100 rounded w-1/2"></div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
       
       {/* Error State */}
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-8">
-          {error}
+          <p className="font-medium">Error loading restaurants</p>
+          <p className="text-sm">{error}</p>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="mt-2"
+            onClick={() => window.location.reload()}
+          >
+            Try Again
+          </Button>
         </div>
       )}
       
@@ -101,10 +125,12 @@ export default function RestaurantsContent() {
             <div className="mb-12">
               <h2 className="text-2xl font-bold mb-4">Featured Restaurants</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {featuredRestaurants.map((restaurant) => (
+                {featuredRestaurants.map((restaurant) => {
+                  const restaurantId = restaurant.id || restaurant._id?.toString();
+                  return (
                   <Link 
-                    key={restaurant.id} 
-                    href={`/restaurants/${restaurant.id}`}
+                    key={restaurantId} 
+                    href={`/restaurants/${restaurantId}`}
                     className="block bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
                   >
                     <div className="relative h-48 w-full">
@@ -123,19 +149,20 @@ export default function RestaurantsContent() {
                     <div className="p-4">
                       <h3 className="font-bold text-lg mb-1">{restaurant.name}</h3>
                       <div className="flex items-center text-sm text-gray-600 mb-2">
-                        <MapPin className="w-4 h-4 mr-1" />
-                        <span>{restaurant.address}</span>
+                        <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
+                        <span className="truncate">{restaurant.address}</span>
                       </div>
                       <div className="flex items-center text-sm text-gray-500 mt-1">
                         <Star className="h-4 w-4 text-yellow-400 mr-1" />
                         <span>{restaurant.rating?.toFixed(1) || '0.0'}</span>
                         <span className="mx-2">•</span>
-                        <MapPin className="h-4 w-4 text-gray-400 mr-1" />
-                        <span>{restaurant.address}</span>
+                        <Clock className="h-4 w-4 text-gray-400 mr-1" />
+                        <span>{restaurant.deliveryTime} min</span>
                       </div>
                     </div>
                   </Link>
-                ))}
+                );
+                })}
               </div>
             </div>
           )}
@@ -144,10 +171,12 @@ export default function RestaurantsContent() {
           <h2 className="text-2xl font-bold mb-4">All Restaurants</h2>
           {filteredRestaurants.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredRestaurants.map((restaurant) => (
+              {filteredRestaurants.map((restaurant) => {
+                const restaurantId = restaurant.id || restaurant._id?.toString();
+                return (
                 <Link 
-                  key={restaurant.id} 
-                  href={`/restaurants/${restaurant.id}`}
+                  key={restaurantId} 
+                  href={`/restaurants/${restaurantId}`}
                   className="block bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
                 >
                   <div className="relative h-48 w-full">
@@ -161,23 +190,20 @@ export default function RestaurantsContent() {
                   <div className="p-4">
                     <h3 className="font-bold text-lg mb-1">{restaurant.name}</h3>
                     <div className="flex items-center text-sm text-gray-600 mb-2">
-                      <MapPin className="w-4 h-4 mr-1" />
-                      <span>{restaurant.address}</span>
+                      <MapPin className="w-4 h-4 mr-1 flex-shrink-0" />
+                      <span className="truncate">{restaurant.address}</span>
                     </div>
                     <div className="flex items-center text-sm text-gray-500 mt-1">
                       <Star className="h-4 w-4 text-yellow-400 mr-1" />
                       <span>{restaurant.rating?.toFixed(1) || '0.0'}</span>
                       <span className="mx-2">•</span>
-                      <MapPin className="h-4 w-4 text-gray-400 mr-1" />
-                      <span>{restaurant.address}</span>
-                    </div>
-                    <div className="flex items-center text-sm text-gray-600">
-                      <Clock className="w-4 h-4 mr-1" />
-                      <span>Delivery: {restaurant.deliveryTime} mins</span>
+                      <Clock className="h-4 w-4 text-gray-400 mr-1" />
+                      <span>{restaurant.deliveryTime} min</span>
                     </div>
                   </div>
                 </Link>
-              ))}
+              );
+              })}
             </div>
           ) : (
             <div className="text-center py-12 bg-gray-50 rounded-lg">

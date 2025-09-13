@@ -3,18 +3,21 @@ import mongoose, { Schema, Document } from 'mongoose';
 import { Types } from 'mongoose';
 
 export interface IRestaurant extends Document {
-  _id: Types.ObjectId;
-  id: string;
+  _id: Types.ObjectId | string;
+  id?: string;
   name: string;
   logo: string;
   coverUrl: string;
+  bannerImage?: string;
   description: string;
   address: string;
   phone: string;
   email: string;
+  website?: string;
   cuisineType: string;
   openingTime: string;
   closingTime: string;
+  openingHours?: string; // For backward compatibility
   deliveryFee: number;
   minOrderAmount: number;
   rating: number;

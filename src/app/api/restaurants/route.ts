@@ -5,11 +5,24 @@ import dbConnect from '@/lib/dbConnect';
 export async function GET(request: NextRequest) {
   try {
     const restaurants = await RestaurantService.getAll();
-    return NextResponse.json(restaurants);
+    
+    // Ensure all restaurants have proper ID fields
+    const formattedRestaurants = restaurants.map(restaurant => ({
+      ...restaurant,
+      _id: restaurant._id?.toString(),
+      id: restaurant._id?.toString() || restaurant.id
+    }));
+    
+    return NextResponse.json(formattedRestaurants);
   } catch (error) {
     console.error('Error fetching restaurants:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch restaurants';
     return NextResponse.json(
-      { error: 'Failed to fetch restaurants' },
+      { 
+        error: 'Failed to fetch restaurants',
+        message: errorMessage,
+        details: error instanceof Error ? error.stack : undefined
+      },
       { status: 500 }
     );
   }
@@ -66,7 +79,14 @@ export async function POST(request: NextRequest) {
     const restaurant = await RestaurantService.create(restaurantData);
     console.log('Created restaurant:', restaurant);
     
-    return NextResponse.json(restaurant, { status: 201 });
+    // Convert to plain object and ensure ID is included
+    const responseData = {
+      ...restaurant,
+      _id: restaurant._id?.toString(),
+      id: restaurant._id?.toString() || restaurant.id
+    };
+    
+    return NextResponse.json(responseData, { status: 201 });
   } catch (error) {
     console.error('Error creating restaurant:', error);
     

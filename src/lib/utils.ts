@@ -35,3 +35,20 @@ export function getRandomDeliveryTime(): number {
   // Random delivery time between 20 and 45 minutes
   return Math.floor(Math.random() * 25) + 20
 }
+
+export function formatPhoneNumber(phoneNumber: string | undefined | null): string {
+  if (!phoneNumber) return '';
+  
+  // Remove all non-digit characters
+  const cleaned = ('' + phoneNumber).replace(/\D/g, '');
+  
+  // Check if the phone number is a valid length
+  const match = cleaned.match(/^(\d{3})(\d{3})(\d{4})$/);
+  
+  if (match) {
+    return `(${match[1]}) ${match[2]}-${match[3]}`;
+  }
+  
+  // Return the original if it doesn't match expected format
+  return phoneNumber;
+}
