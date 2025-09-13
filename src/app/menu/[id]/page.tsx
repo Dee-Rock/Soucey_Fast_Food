@@ -150,9 +150,14 @@ const FoodDetailPage: React.FC<FoodDetailPageProps> = ({ params }) => {
   return (
     <div className="container mx-auto px-4 py-8">
       <Button
+        type="button"
         variant="ghost"
         className="mb-6 flex items-center text-gray-600 hover:text-pink-600"
-        onClick={() => router.push('/menu')}
+        onClick={(e) => {
+          e.preventDefault();
+          console.log('Navigating back to menu');
+          router.push('/menu');
+        }}
       >
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Menu
       </Button>
