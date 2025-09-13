@@ -126,7 +126,14 @@ export const MenuItemService = {
   update: (id: string, data: any) => update(MenuItem, id, data),
   remove: (id: string) => remove(MenuItem, id),
   query: (queryObj: any) => query(MenuItem, queryObj),
-  getByRestaurant: (restaurantId: string) => query(MenuItem, { restaurantId })
+  getByRestaurant: async (restaurantId: string, populateRestaurant = false) => {
+    await dbConnect();
+    let query = MenuItem.find({ restaurantId });
+    if (populateRestaurant) {
+      query = query.populate('restaurantId');
+    }
+    return query.lean();
+  },
 };
 
 export const OrderService = {

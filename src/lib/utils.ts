@@ -5,11 +5,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatPrice(price: number): string {
+export function formatPrice(price: number | string | undefined | null): string {
+  const numPrice = Number(price) || 0;
   return new Intl.NumberFormat('en-GH', {
     style: 'currency',
     currency: 'GHS',
-  }).format(price)
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(numPrice);
 }
 
 export function truncateText(text: string, maxLength: number): string {

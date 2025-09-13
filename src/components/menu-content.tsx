@@ -7,11 +7,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Search, Filter, Loader } from 'lucide-react';
 import FoodCard from '@/components/food-card';
 import { formatPrice } from '@/lib/utils';
-import { IMenuItem } from '@/models/MenuItem';
+import { IMenuItemWithRestaurant } from '@/types/menu-item.types';
 
 export default function MenuContent() {
-  const [foodItems, setFoodItems] = useState<IMenuItem[]>([]);
-  const [filteredItems, setFilteredItems] = useState<IMenuItem[]>([]);
+  const [foodItems, setFoodItems] = useState<IMenuItemWithRestaurant[]>([]);
+  const [filteredItems, setFilteredItems] = useState<IMenuItemWithRestaurant[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categories, setCategories] = useState<string[]>([]);
@@ -23,14 +23,17 @@ export default function MenuContent() {
     const fetchFoodItems = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch('/api/menu-items');
+        // Include restaurant data in the fetch
+        const response = await fetch('/api/menu-items?populate=true');
         
         if (!response.ok) {
           throw new Error('Failed to fetch menu items');
         }
         
         const data = await response.json();
-        const items: IMenuItem[] = data;
+        const items: IMenuItemWithRestaurant[] = data;
+        
+        console.log('Fetched menu items with restaurant data:', items);
         const categorySet = new Set<string>();
         
         items.forEach((item) => {
@@ -129,15 +132,19 @@ export default function MenuContent() {
             {filteredItems.length > 0 ? (
               filteredItems.map((food) => (
                 <FoodCard
-                  key={food._id?.toString() || food.id}
-                  id={food._id?.toString() || food.id}
+                  key={food._id}
+                  id={food._id}
                   name={food.name}
                   description={food.description || ''}
                   price={food.price}
                   image={food.imageUrl}
-                  restaurant={food.restaurantId ? `From ${food.restaurantId}` : ''}
+                  restaurant={food.restaurant ? {
+                    id: food.restaurant._id.toString(),
+                    name: food.restaurant.name,
+                    deliveryFee: food.restaurant.deliveryFee
+                  } : undefined}
                   category={food.category}
-                  popular={food.isFeatured || false}
+                  popular={food.isFeatured}
                 />
               ))
             ) : (

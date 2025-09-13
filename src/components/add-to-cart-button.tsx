@@ -11,7 +11,11 @@ interface AddToCartButtonProps {
     id: string | number;
     name: string;
     price: number;
-    restaurant: string;
+    restaurant: {
+      id: string | number;
+      name: string;
+      deliveryFee: number;
+    };
     image?: string;
   };
   variant?: 'default' | 'outline' | 'ghost';
@@ -37,7 +41,12 @@ export default function AddToCartButton({
       name: item.name,
       price: item.price,
       quantity: 1,
-      restaurant: item.restaurant,
+      restaurant: {
+        id: item.restaurant.id,
+        name: item.restaurant.name,
+        deliveryFee: item.restaurant.deliveryFee
+      },
+      restaurantId: item.restaurant.id,
       image: item.image
     };
     

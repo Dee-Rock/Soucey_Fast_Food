@@ -8,6 +8,12 @@ import { Clock, Star } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 import AddToCartButton from '@/components/add-to-cart-button';
 
+interface RestaurantInfo {
+  id: string | number;
+  name: string;
+  deliveryFee: number;
+}
+
 interface FoodCardProps {
   id: string | number;
   name: string;
@@ -15,7 +21,7 @@ interface FoodCardProps {
   price: number;
   image?: string;
   category?: string;
-  restaurant?: string;
+  restaurant?: RestaurantInfo;
   rating?: number;
   preparationTime?: string | number;
   popular?: boolean;
@@ -78,7 +84,7 @@ const FoodCard: React.FC<FoodCardProps> = (props) => {
         
         <div className="flex justify-between items-center">
           {props.restaurant && (
-            <span className="text-xs text-gray-500">{props.restaurant}</span>
+            <span className="text-xs text-gray-500">{props.restaurant.name}</span>
           )}
           
           <div className="flex space-x-2">
@@ -90,11 +96,11 @@ const FoodCard: React.FC<FoodCardProps> = (props) => {
             
             <AddToCartButton 
               item={{
-                id: props.id.toString(),
+                id: props.id,
                 name: props.name,
                 price: props.price,
-                restaurant: props.restaurant || 'Unknown',
-                image: props.image || '/placeholder-food.jpg'
+                restaurant: props.restaurant || { id: 0, name: 'Unknown', deliveryFee: 0 },
+                image: props.image
               }} 
               variant="outline"
               size="sm"

@@ -38,6 +38,17 @@ const CartPage = () => {
       <h1 className="text-3xl md:text-4xl font-bold mb-2">Your Cart</h1>
       <p className="text-gray-600 mb-8">Review your items before checkout</p>
       
+      {cartItems.length > 0 && cartItems[0]?.restaurant && (
+        <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 mb-6">
+          <p className="text-blue-800 font-medium">
+            Ordering from: <span className="font-semibold">{cartItems[0].restaurant.name}</span>
+          </p>
+          <p className="text-sm text-blue-700 mt-1">
+            Delivery fee: {formatPrice(deliveryFee)}
+          </p>
+        </div>
+      )}
+      
       {cartItems.length > 0 ? (
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Cart Items */}
@@ -69,7 +80,7 @@ const CartPage = () => {
                     
                     <div className="flex-grow mb-4 sm:mb-0">
                       <h3 className="font-semibold">{item.name}</h3>
-                      <p className="text-sm text-gray-500">{item.restaurant}</p>
+                      <p className="text-sm text-gray-500">{item.restaurant.name}</p>
                       <p className="text-pink-600 font-medium">{formatPrice(item.price)}</p>
                     </div>
                     

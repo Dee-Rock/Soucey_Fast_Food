@@ -23,6 +23,12 @@ interface CartItem {
 }
 
 // Define the order item type
+interface RestaurantInfo {
+  id: string | number;
+  name: string;
+  deliveryFee: number;
+}
+
 type OrderItem = {
   name: string;
   quantity: number;
@@ -30,7 +36,7 @@ type OrderItem = {
   total: number;
   notes?: string;
   id: string | number;
-  restaurant: string;
+  restaurant: RestaurantInfo;
   image?: string;
 };
 
@@ -51,16 +57,7 @@ interface OrderData {
   address: string;
   campus: string;
   landmark?: string;
-  items: Array<{
-    name: string;
-    quantity: number;
-    price: number;
-    total: number;
-    notes?: string;
-    id: string | number;
-    restaurant: string;
-    image?: string;
-  }>;
+  items: OrderItem[];
   subtotal: number;
   deliveryFee: number;
   total: number;
@@ -415,31 +412,8 @@ const CheckoutPage = () => {
             </div>
           </div>
           
-          {/* Payment Method */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center mb-4">
-              <CreditCard className="w-5 h-5 text-pink-600 mr-2" />
-              <h2 className="text-xl font-semibold">Payment Method</h2>
-            </div>
-            
-            <PaymentOptions 
-              amount={total}
-              email={customerEmail}
-              name={customerName}
-              phone={customerPhone}
-              onSuccess={handlePaymentSuccess}
-              onClose={() => {}}
-              onPlaceOrder={() => {
-                // This will be called for cash payments
-                if (paymentMethod === 'cash') {
-                  handlePaymentSuccess('cash_payment_' + Date.now());
-                }
-              }}
-              isSubmitting={isSubmitting}
-              selectedMethod={paymentMethod}
-              onSelectMethod={handlePaymentMethodSelect}
-            />
-          </div>
+          {/* Payment Method - Removed as per requirements */}
+          <input type="hidden" name="paymentMethod" value="cash" />
         </div>
         
         {/* Order Summary */}

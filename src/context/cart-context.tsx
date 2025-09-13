@@ -2,15 +2,23 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
+// Define restaurant interface
+export interface RestaurantInfo {
+  id: string | number;
+  name: string;
+  deliveryFee: number;
+}
+
 // Define cart item interface
 export interface CartItem {
   id: string | number;
   name: string;
   price: number;
   quantity: number;
-  restaurant: string;
+  restaurant: RestaurantInfo;
   image?: string;
   notes?: string;
+  restaurantId: string | number;
 }
 
 interface CartContextType {
@@ -69,28 +77,72 @@ export const CartProvider = ({ children }: CartProviderProps) => {
   }, [cartItems, isInitialized]);
   
   // Calculate cart totals
-  const subtotal = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
-  const deliveryFee = cartItems.length > 0 ? 10.00 : 0;
-  const total = subtotal + deliveryFee;
+  const subtotal = cartItems.reduce((total, item) => total + (Number(item.price) || 0) * (Number(item.quantity) || 0), 0);
+  
+  // Get the delivery fee from the first restaurant in cart (assuming all items are from the same restaurant)
+  const deliveryFee = cartItems.length > 0 && cartItems[0].restaurant ? 
+    Number(cartItems[0].restaurant.deliveryFee) || 0 : 0;
+  
+  const total = (Number(subtotal) || 0) + (Number(deliveryFee) || 0);
   const itemCount = cartItems.reduce((count, item) => count + item.quantity, 0);
   
   // Add item to cart
   const addToCart = (item: CartItem) => {
     setCartItems(prevItems => {
-      const existingItemIndex = prevItems.findIndex(i => i.id === item.id);
-      
-      if (existingItemIndex >= 0) {
-        // Item already exists, update quantity
-        const updatedItems = [...prevItems];
-        updatedItems[existingItemIndex] = {
-          ...updatedItems[existingItemIndex],
-          quantity: updatedItems[existingItemIndex].quantity + item.quantity
-        };
-        return updatedItems;
-      } else {
-        // Item doesn't exist, add it
-        return [...prevItems, item];
+      // Ensure item has required restaurant data
+      if (!item.restaurant) {
+        console.error('Cannot add item to cart: Missing restaurant information');
+        return prevItems;
       }
+      
+      // If cart is not empty and the new item is from a different restaurant
+      if (prevItems.length > 0 && prevItems[0].restaurantId !== item.restaurantId) {
+        // Ask for confirmation to clear the cart
+        if (window.confirm('You have items from another restaurant in your cart. Adding this item will clear your cart. Continue?')) {
+          return [{ 
+            ...item, 
+            quantity: 1,
+            restaurant: {
+              id: item.restaurant.id,
+              name: item.restaurant.name,
+              deliveryFee: Number(item.restaurant.deliveryFee) || 0
+            }
+          }];
+        }
+        return prevItems;
+      }
+      
+      // Check if item already exists in cart
+      const existingItem = prevItems.find(cartItem => cartItem.id === item.id);
+      
+      if (existingItem) {
+        // Update quantity if item exists
+        return prevItems.map(cartItem =>
+          cartItem.id === item.id
+            ? { 
+                ...cartItem, 
+                quantity: cartItem.quantity + 1,
+                // Ensure restaurant info is preserved
+                restaurant: {
+                  id: item.restaurant.id,
+                  name: item.restaurant.name,
+                  deliveryFee: Number(item.restaurant.deliveryFee) || 0
+                }
+              }
+            : cartItem
+        );
+      }
+      
+      // Add new item to cart with proper restaurant info
+      return [...prevItems, { 
+        ...item, 
+        quantity: 1,
+        restaurant: {
+          id: item.restaurant.id,
+          name: item.restaurant.name,
+          deliveryFee: Number(item.restaurant.deliveryFee) || 0
+        }
+      }];
     });
   };
   
