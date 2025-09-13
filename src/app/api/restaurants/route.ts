@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
     const restaurants = await RestaurantService.getAll();
     
     // Ensure all restaurants have proper ID fields
-    const formattedRestaurants = restaurants.map(restaurant => ({
+    const formattedRestaurants = restaurants.map((restaurant: any) => ({
       ...restaurant,
       _id: restaurant._id?.toString(),
       id: restaurant._id?.toString() || restaurant.id
@@ -80,10 +80,11 @@ export async function POST(request: NextRequest) {
     console.log('Created restaurant:', restaurant);
     
     // Convert to plain object and ensure ID is included
+    const restaurantObj = restaurant as any;
     const responseData = {
-      ...restaurant,
-      _id: restaurant._id?.toString(),
-      id: restaurant._id?.toString() || restaurant.id
+      ...restaurantObj,
+      _id: restaurantObj._id?.toString(),
+      id: restaurantObj._id?.toString() || restaurantObj.id
     };
     
     return NextResponse.json(responseData, { status: 201 });
