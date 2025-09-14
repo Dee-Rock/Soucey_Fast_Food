@@ -242,16 +242,9 @@ const CheckoutPage = () => {
       const { success, orderId: newOrderId } = await saveOrder(orderData);
 
       if (success && newOrderId) {
-        setOrderId(newOrderId);
-        setOrderPlaced(true);
+        // Clear cart and redirect to success page
         clearCart();
-        setShouldRedirect(true);
-        
-        toast({
-          title: 'Order Placed Successfully!',
-          description: 'Thank you for your order. You will be redirected to your orders page.',
-          duration: 5000,
-        });
+        router.push(`/checkout/success?orderId=${newOrderId}`);
         return true;
       } else {
         throw new Error('Failed to save order');

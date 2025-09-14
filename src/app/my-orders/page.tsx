@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/utils';
-import { Loader2, Package, Clock, CheckCircle, XCircle, ArrowLeft } from 'lucide-react';
+import { Loader2, Package, Clock, CheckCircle, XCircle, ArrowLeft, FileText, Download } from 'lucide-react';
 import { ObjectId, WithId, Document } from 'mongodb';
 
 interface BaseOrderItem {
@@ -332,7 +332,59 @@ export default function MyOrdersPage() {
                     </div>
                   </div>
 
-                  <div className="mt-6 flex flex-col space-y-2">
+                  <div className="mt-6 flex flex-col space-y-4">
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex items-center gap-2"
+                        onClick={() => window.open(`/checkout/success?orderId=${order._id}`, '_blank')}
+                      >
+                        <FileText className="h-4 w-4" />
+                        View Receipt
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex items-center gap-2"
+                        onClick={async () => {
+                          try {
+                            const { jsPDF } = await import('jspdf');
+                            const response = await fetch(`/api/orders/${order._id}`);
+                            const orderData = await response.json();
+                            
+                            const doc = new jsPDF();
+                            const receiptElement = document.createElement('div');
+                            receiptElement.className = 'print-content';
+                            document.body.appendChild(receiptElement);
+                            
+                            // Render the receipt component
+                            const { renderToString } = await import('react-dom/server');
+                            const { OrderReceipt } = await import('@/components/order/order-receipt');
+                            
+                            receiptElement.innerHTML = renderToString(<OrderReceipt order={orderData} />);
+                            
+                            // Generate PDF
+                            await doc.html(receiptElement, {
+                              callback: (pdf) => {
+                                pdf.save(`receipt-${order.orderNumber}.pdf`);
+                                document.body.removeChild(receiptElement);
+                              },
+                              margin: 10,
+                              html2canvas: {
+                                scale: 0.7,
+                                useCORS: true,
+                              },
+                            });
+                          } catch (error) {
+                            console.error('Error generating PDF:', error);
+                          }
+                        }}
+                      >
+                        <Download className="h-4 w-4" />
+                        Download PDF
+                      </Button>
+                    </div>
                     <div>
                       <span className="text-sm font-medium text-gray-500">Delivery Address</span>
                       <p className="text-sm">{order.address}</p>

@@ -3,6 +3,44 @@
 @tailwind utilities;
 
 @layer base {
+  /* Print styles for receipts */
+  @media print {
+    body * {
+      visibility: hidden;
+      background: white !important;
+      color: black !important;
+    }
+    
+    .print-content, .print-content * {
+      visibility: visible;
+    }
+    
+    .print-content {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      padding: 20px;
+      box-shadow: none !important;
+      border: none !important;
+    }
+    
+    .no-print {
+      display: none !important;
+    }
+    
+    /* Ensure background colors print */
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    
+    /* Remove unnecessary elements */
+    header, footer, nav, aside, .no-print {
+      display: none !important;
+    }
+  }
+
   :root {
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
