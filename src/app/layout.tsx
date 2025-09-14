@@ -9,6 +9,7 @@ import Footer from '@/components/footer';
 import { CartProvider } from '@/context/cart-context';
 import AuthCheck from '@/components/auth-check';
 import { headers } from 'next/headers';
+import './leaflet.css';
 
 const inter = Inter({ subsets: ['latin'] });
 
