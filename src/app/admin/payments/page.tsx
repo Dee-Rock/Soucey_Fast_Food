@@ -15,8 +15,7 @@ import {
   XCircle
 } from 'lucide-react'
 import { exportToCSV, exportToJSON, getFormattedDate } from '@/utils/export-data'
-import { connectToDatabase } from '@/lib/mongodb'
-import { IPayment as Payment } from '@/models/Payment'
+// Removed direct MongoDB imports
 
 // Payment type for the UI (doesn't include MongoDB-specific fields)
 interface UIPayment {
@@ -130,52 +129,38 @@ export default function PaymentsPage() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [selectedPayment, setSelectedPayment] = useState<UIPayment | null>(null)
 
-  // Fetch payments from MongoDB
+  // Fetch payments from API
   useEffect(() => {
-    const loadPayments = async () => {
+    const fetchPayments = async () => {
       try {
-        setIsLoading(true)
-        const { db } = await connectToDatabase()
+        setIsLoading(true);
+        const response = await fetch('/api/admin/payments');
+        const data = await response.json();
         
-        if (!db) {
-          throw new Error('Failed to connect to database')
+        if (data.success) {
+          setPayments(data.data);
+          setFilteredPayments(data.data);
+        } else {
+          setError(data.error || 'Failed to fetch payments');
+          // Fallback to mock data if API fails
+          setPayments(mockPayments);
+          setFilteredPayments(mockPayments);
         }
-        
-        // Get all payments
-        const payments = await db.collection('payments').find({}).toArray()
-        
-        // Map to UIPayment format
-        const formattedPayments: UIPayment[] = payments.map((payment: any) => ({
-          id: payment._id?.toString() || `temp-${Math.random().toString(36).substr(2, 9)}`,
-          orderId: payment.orderId?.toString() || '',
-          customer: payment.customer || 'Unknown',
-          amount: payment.amount || '0',
-          method: payment.method || 'other',
-          provider: payment.provider || 'Unknown',
-          status: payment.status || 'pending',
-          reference: payment.reference || '',
-          date: payment.createdAt ? new Date(payment.createdAt).toLocaleString() : new Date().toLocaleString(),
-          createdAt: payment.createdAt ? new Date(payment.createdAt) : new Date(),
-          updatedAt: payment.updatedAt ? new Date(payment.updatedAt) : new Date()
-        }))
-        
-        setPayments(formattedPayments)
-        setFilteredPayments(formattedPayments)
       } catch (err) {
-        console.error('Error loading payments:', err)
-        setError('Failed to load payments. Using mock data.')
+        console.error('Error fetching payments:', err);
+        setError('Failed to connect to the server');
         // Fallback to mock data in development
         if (process.env.NODE_ENV === 'development') {
-          setPayments(mockPayments)
-          setFilteredPayments(mockPayments)
+          setPayments(mockPayments);
+          setFilteredPayments(mockPayments);
         }
       } finally {
-        setIsLoading(false)
+        setIsLoading(false);
       }
-    }
-    
-    loadPayments()
-  }, [])
+    };
+
+    fetchPayments();
+  }, []);
 
   // Filter payments based on search query and filters
   useEffect(() => {
@@ -225,48 +210,43 @@ export default function PaymentsPage() {
     if (window.confirm('Are you sure you want to delete this payment?')) {
       setIsDeleting(true)
       try {
-        const { db } = await connectToDatabase()
-        if (!db) throw new Error('Failed to connect to database')
+        const response = await fetch(`/api/admin/payments/${id}`, {
+          method: 'DELETE',
+        });
         
-        const { ObjectId } = await import('mongodb')
-        const result = await db.collection('payments').deleteOne({ _id: new ObjectId(id) })
+        const data = await response.json();
         
-        if (result.deletedCount > 0) {
-          setPayments(payments.filter(payment => payment.id !== id))
+        if (data.success) {
+          setPayments(payments.filter(payment => payment.id !== id));
+          setFilteredPayments(filteredPayments.filter(payment => payment.id !== id));
         } else {
-          throw new Error('Payment not found or already deleted')
+          throw new Error(data.error || 'Failed to delete payment');
         }
       } catch (err) {
-        console.error('Error deleting payment:', err)
-        setError('Failed to delete payment. Please try again.')
+        console.error('Error deleting payment:', err);
+        setError('Failed to delete payment. Please try again.');
       } finally {
-        setIsUpdating(false)
+        setIsDeleting(false);
       }
     }
   }
 
   // Handle payment status update
   const handleUpdatePaymentStatus = async (paymentId: string, newStatus: UIPayment['status']) => {
-    if (!paymentId) return
+    if (!paymentId) return;
     
     try {
-      setIsUpdating(true)
-      const { db } = await connectToDatabase()
+      setIsUpdating(true);
       
-      if (!db) {
-        throw new Error('Failed to connect to database')
-      }
-      
-      // Only proceed if it's a real ID (not a temp ID)
+      // For temp IDs, just update local state
       if (paymentId.startsWith('temp-')) {
-        // Just update local state for temp IDs
         setPayments(prevPayments => 
           prevPayments.map(payment => 
             payment.id === paymentId 
               ? { ...payment, status: newStatus } 
               : payment
           )
-        )
+        );
         
         setFilteredPayments(prevPayments => 
           prevPayments.map(payment => 
@@ -274,51 +254,51 @@ export default function PaymentsPage() {
               ? { ...payment, status: newStatus } 
               : payment
           )
-        )
+        );
         
-        alert(`Payment status updated to ${newStatus}`)
-        return
+        alert(`Payment status updated to ${newStatus}`);
+        return;
       }
       
-      // For real MongoDB IDs
-      const { ObjectId } = await import('mongodb')
+      // For real IDs, call the API
+      const response = await fetch(`/api/admin/payments/${paymentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
       
-      // Update the payment status in the database
-      const result = await db.collection('payments').updateOne(
-        { _id: new ObjectId(paymentId) },
-        { $set: { status: newStatus, updatedAt: new Date() } }
-      )
+      const data = await response.json();
       
-      if (result.modifiedCount > 0) {
-        // Update the local state
+      if (data.success) {
+        // Update local state
         setPayments(prevPayments => 
           prevPayments.map(payment => 
             payment.id === paymentId 
               ? { ...payment, status: newStatus } 
               : payment
           )
-        )
+        );
         
-        // Update filtered payments as well
         setFilteredPayments(prevPayments => 
           prevPayments.map(payment => 
             payment.id === paymentId 
               ? { ...payment, status: newStatus } 
               : payment
           )
-        )
+        );
         
-        // Show success message
-        alert(`Payment ${paymentId} status updated to ${newStatus}`)
+        alert(`Payment status updated to ${newStatus}`);
       } else {
-        throw new Error('No documents were updated')
+        throw new Error(data.error || 'Failed to update payment status');
       }
     } catch (err) {
-      console.error('Error updating payment status:', err)
-      alert('Failed to update payment status. Please try again.')
+      console.error('Error updating payment status:', err);
+      alert('Failed to update payment status. Please try again.');
     } finally {
-      setIsUpdating(false)
-      setSelectedPayment(null)
+      setIsUpdating(false);
+      setSelectedPayment(null);
     }
   }
 
